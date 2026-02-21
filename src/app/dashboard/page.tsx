@@ -56,12 +56,16 @@ export default function DashboardPage() {
     const handleRunScheduler = async () => {
         setIsGenerating(true);
         try {
-            const { data } = await api.post("/cron/generate");
-            const count = data?.topics?.length ?? 0;
-            toast.success(count > 0 ? `Generated ${count} blog(s) successfully!` : data?.message || "No scheduled topics due.");
+            const { data } = await api.post("/blogs/generate");
+            if (data?.blog) {
+                toast.success("Generated blog successfully! Check the Review Queue.");
+            } else {
+                toast.success(data?.message || "Generated successfully!");
+            }
             refreshData();
         } catch (error: any) {
-            toast.error(error.response?.data?.error || error.message || "Error running scheduled task");
+            const msg = error.response?.data?.error || error.message || "Error generating blog";
+            toast.error(msg === "No pending topics found in queue" ? "No pending topics in queue. Add a topic first." : msg);
         } finally {
             setIsGenerating(false);
         }
