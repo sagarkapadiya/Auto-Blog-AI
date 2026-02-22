@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const authUser = await authenticate(req);
-        const { title, category, keywords, targetAudience, scheduledAt } = await req.json();
+        const { title, category, keywords, targetAudience, scheduledAt, postedBy } = await req.json();
 
         if (!title || !category) {
             return Response.json({ error: "Title and category are required" }, { status: 400 });
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
             status: "PENDING",
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             cronStatus: scheduledAt ? "SCHEDULED" : "NONE",
+            postedBy: postedBy || "",
             createdBy: authUser._id,
         });
 

@@ -58,6 +58,9 @@ export async function PUT(
             const settings = (await SettingsModel.findOne({ userId: authUser._id }).lean()) as { curlCommand?: string } | null;
             const curlCommand = settings?.curlCommand;
             if (curlCommand?.trim()) {
+                const topic = await import("@/models/Topic").then(m => m.default.findById(blog.topicId).lean<{ postedBy?: string }>());
+                const postedByValue = topic?.postedBy || "";
+
                 const blogData: Record<string, unknown> = {
                     seoTitle: blog.seoTitle,
                     title: blog.seoTitle,
@@ -72,6 +75,9 @@ export async function PUT(
                     featuredImagePrompt: blog.featuredImagePrompt,
                     publishedAt: blog.publishedAt,
                     topicId: blog.topicId?.toString(),
+                    postedBy: postedByValue,
+                    posted_by: postedByValue,
+                    author: postedByValue,
                 };
                 await BlogApiService.postBlog(curlCommand, blogData);
             }
