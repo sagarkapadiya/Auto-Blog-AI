@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { authenticate, authErrorResponse } from "@/lib/auth";
 import BlogModel from "@/models/Blog";
 import SettingsModel from "@/models/Settings";
+import UserModel from "@/models/User";
 import { BlogApiService } from "@/lib/blogApiService";
 
 /** PUT /api/blogs/[id] — Update a blog */
@@ -20,6 +21,33 @@ export async function PUT(
         const blog = await BlogModel.findOne({ _id: id, createdBy: authUser._id });
         if (!blog) {
             return Response.json({ error: "Blog not found" }, { status: 404 });
+        }
+
+        // --- Monthly publish limit check ---
+        if (updates.status === "PUBLISHED" && blog.status !== "PUBLISHED") {
+            const user = await UserModel.findById(authUser._id).select("monthlyPublishLimit").lean<{ monthlyPublishLimit?: number }>();
+            const limit = user?.monthlyPublishLimit ?? 0;
+
+            if (limit > 0) {
+                const now = new Date();
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+                const publishedThisMonth = await BlogModel.countDocuments({
+                    createdBy: authUser._id,
+                    status: "PUBLISHED",
+                    publishedAt: { $gte: monthStart, $lt: monthEnd },
+                });
+
+                if (publishedThisMonth >= limit) {
+                    return Response.json(
+                        {
+                            error: `Monthly publish limit reached (${publishedThisMonth}/${limit}). Please contact your admin to increase your monthly limit.`,
+                        },
+                        { status: 403 }
+                    );
+                }
+            }
         }
 
         Object.assign(blog, updates);

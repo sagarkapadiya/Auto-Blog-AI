@@ -16,11 +16,19 @@ export default function ReviewPage() {
     const [isPublishing, setIsPublishing] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [monthlyPublished, setMonthlyPublished] = useState(0);
+    const [monthlyPublishLimit, setMonthlyPublishLimit] = useState(0);
 
     const refreshData = useCallback(async () => {
         try {
-            const { data } = await api.get("/blogs");
-            setBlogs(data.blogs || []);
+            const [blogsRes, statsRes] = await Promise.all([
+                api.get("/blogs"),
+                api.get("/dashboard"),
+            ]);
+            setBlogs(blogsRes.data.blogs || []);
+            const stats = statsRes.data.stats || {};
+            setMonthlyPublished(stats.monthlyPublished ?? 0);
+            setMonthlyPublishLimit(stats.monthlyPublishLimit ?? 0);
         } finally {
             setIsLoading(false);
         }
@@ -29,6 +37,8 @@ export default function ReviewPage() {
     useEffect(() => { if (token) refreshData(); }, [token, refreshData]);
 
     const reviewBlogs = blogs.filter((b: any) => b.status === "GENERATED" || b.status === "REJECTED");
+
+    const limitReached = monthlyPublishLimit > 0 && monthlyPublished >= monthlyPublishLimit;
 
     const handleApprove = async (blog: any) => {
         setIsPublishing(true);
@@ -64,6 +74,31 @@ export default function ReviewPage() {
                 <h2 className="text-3xl font-bold text-slate-800">Review Queue</h2>
                 <p className="text-slate-500">Approve or edit AI-generated blogs before they go live.</p>
             </div>
+
+            {/* Monthly publish limit banner */}
+            {monthlyPublishLimit > 0 && (
+                <div className={`flex items-center gap-4 p-4 rounded-2xl border ${limitReached ? "bg-rose-50 border-rose-200" : "bg-indigo-50 border-indigo-200"}`}>
+                    <ICONS.Lock className={`w-5 h-5 shrink-0 ${limitReached ? "text-rose-500" : "text-indigo-500"}`} />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-sm font-semibold ${limitReached ? "text-rose-700" : "text-indigo-700"}`}>
+                                {limitReached
+                                    ? "Monthly publish limit reached — contact your admin to increase it."
+                                    : `Published this month: ${monthlyPublished} / ${monthlyPublishLimit}`}
+                            </span>
+                            <span className={`text-xs font-bold ${limitReached ? "text-rose-500" : "text-indigo-500"}`}>
+                                {monthlyPublishLimit - monthlyPublished > 0 ? `${monthlyPublishLimit - monthlyPublished} remaining` : "0 remaining"}
+                            </span>
+                        </div>
+                        <div className="w-full h-2 bg-white rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${limitReached ? "bg-rose-500" : "bg-indigo-500"}`}
+                                style={{ width: `${Math.min((monthlyPublished / monthlyPublishLimit) * 100, 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {isLoading ? (

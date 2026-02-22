@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         const authUser = await authenticate(req);
         requireAdmin(authUser);
 
-        const { name, email, password, role, settings: userSettings } = await req.json();
+        const { name, email, password, role, monthlyPublishLimit, settings: userSettings } = await req.json();
 
         if (!name || !email || !password) {
             return Response.json({ error: "Name, email, and password are required" }, { status: 400 });
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
             password: hashedPassword,
             role: role === "ADMIN" ? "ADMIN" : "USER",
             isActive: true,
+            monthlyPublishLimit: typeof monthlyPublishLimit === "number" && monthlyPublishLimit >= 0 ? monthlyPublishLimit : 0,
         });
 
         if (userSettings && typeof userSettings === "object") {
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
                 email: user.email,
                 role: user.role,
                 isActive: user.isActive,
+                monthlyPublishLimit: user.monthlyPublishLimit,
                 createdAt: user.createdAt,
             },
         }, { status: 201 });

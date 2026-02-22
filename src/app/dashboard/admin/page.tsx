@@ -49,6 +49,7 @@ function AdminPanel() {
                 email: formData.get("email"),
                 password: formData.get("password"),
                 role: formData.get("role"),
+                monthlyPublishLimit: parseInt(formData.get("monthlyPublishLimit") as string) || 0,
                 settings: {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
@@ -73,6 +74,7 @@ function AdminPanel() {
                 name: formData.get("name"),
                 email: formData.get("email"),
                 role: formData.get("role"),
+                monthlyPublishLimit: parseInt(formData.get("monthlyPublishLimit") as string) || 0,
                 settings: {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
@@ -141,6 +143,7 @@ function AdminPanel() {
                             <th className="px-6 py-5">User</th>
                             <th className="px-6 py-5">Email</th>
                             <th className="px-6 py-5">Role</th>
+                            <th className="px-6 py-5">Monthly Limit</th>
                             <th className="px-6 py-5">Status</th>
                             <th className="px-6 py-5">Joined</th>
                             <th className="px-6 py-5 text-right">Actions</th>
@@ -148,9 +151,9 @@ function AdminPanel() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {isLoading ? (
-                            Array.from({ length: 4 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
+                            Array.from({ length: 4 }).map((_, i) => <TableRowSkeleton key={i} cols={7} />)
                         ) : users.length === 0 ? (
-                            <tr><td colSpan={6} className="px-6 py-14 text-center text-slate-400">No users found.</td></tr>
+                            <tr><td colSpan={7} className="px-6 py-14 text-center text-slate-400">No users found.</td></tr>
                         ) : users.map((user: any) => (
                             <tr key={user._id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-5">
@@ -162,6 +165,10 @@ function AdminPanel() {
                                 <td className="px-6 py-5 text-slate-500">{user.email}</td>
                                 <td className="px-6 py-5">
                                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${user.role === "ADMIN" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{user.role}</span>
+                                </td>
+                                <td className="px-6 py-5">
+                                    <span className="text-sm font-semibold text-slate-700">{user.monthlyPublishLimit > 0 ? user.monthlyPublishLimit : "∞"}</span>
+                                    <span className="text-xs text-slate-400 ml-1">{user.monthlyPublishLimit > 0 ? "/ mo" : "Unlimited"}</span>
                                 </td>
                                 <td className="px-6 py-5">
                                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${user.isActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>{user.isActive ? "Active" : "Inactive"}</span>
@@ -191,32 +198,41 @@ function AdminPanel() {
 
             {showCreateModal && (
                 <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl my-8">
-                        <h3 className="text-2xl font-bold mb-6">Create New User</h3>
-                        <form onSubmit={handleCreateUser} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Full Name</label>
-                                <input name="name" required disabled={isCreating} className="w-full px-4 py-3 border border-slate-200 rounded-2xl disabled:opacity-60" placeholder="John Doe" />
+                    <div className="bg-white w-full max-w-2xl rounded-3xl p-6 shadow-2xl my-4">
+                        <h3 className="text-2xl font-bold mb-4">Create New User</h3>
+                        <form onSubmit={handleCreateUser} className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Full Name</label>
+                                    <input name="name" required disabled={isCreating} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" placeholder="John Doe" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Email</label>
+                                    <input name="email" type="email" required disabled={isCreating} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" placeholder="john@example.com" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Password</label>
+                                    <input name="password" type="password" required minLength={6} disabled={isCreating} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" placeholder="Min 6 characters" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Role</label>
+                                    <select name="role" disabled={isCreating} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-white disabled:opacity-60">
+                                        <option value="USER">User</option>
+                                        <option value="ADMIN">Admin</option>
+                                    </select>
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Email</label>
-                                <input name="email" type="email" required disabled={isCreating} className="w-full px-4 py-3 border border-slate-200 rounded-2xl disabled:opacity-60" placeholder="john@example.com" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Password</label>
-                                <input name="password" type="password" required minLength={6} disabled={isCreating} className="w-full px-4 py-3 border border-slate-200 rounded-2xl disabled:opacity-60" placeholder="Min 6 characters" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Role</label>
-                                <select name="role" disabled={isCreating} className="w-full px-4 py-3 border border-slate-200 rounded-2xl bg-white disabled:opacity-60">
-                                    <option value="USER">User</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
+                                <label className="block text-sm font-semibold text-slate-600 mb-1">Monthly Publish Limit</label>
+                                <input name="monthlyPublishLimit" type="number" min={0} defaultValue={0} disabled={isCreating} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" placeholder="0 = Unlimited" />
+                                <p className="text-xs text-slate-400 mt-1">Set to 0 for unlimited</p>
                             </div>
                             <UserSettingsFields disabled={isCreating} settings={null} />
-                            <div className="flex gap-4 mt-8">
-                                <button type="button" onClick={() => setShowCreateModal(false)} disabled={isCreating} className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                                <button type="submit" disabled={isCreating} className={`flex-1 py-3 font-bold rounded-2xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 ${isCreating ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
+                            <div className="flex gap-4 mt-6">
+                                <button type="button" onClick={() => setShowCreateModal(false)} disabled={isCreating} className="flex-1 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                                <button type="submit" disabled={isCreating} className={`flex-1 py-2.5 font-bold rounded-xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 ${isCreating ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
                                     {isCreating && <Spinner className="w-4 h-4" />}
                                     {isCreating ? "Creating..." : "Create User"}
                                 </button>
@@ -228,28 +244,36 @@ function AdminPanel() {
 
             {editingUser && (
                 <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl my-8">
-                        <h3 className="text-2xl font-bold mb-6">Edit User</h3>
-                        <form onSubmit={handleEditUser} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Full Name</label>
-                                <input name="name" defaultValue={editingUser.name} required disabled={isEditing} className="w-full px-4 py-3 border border-slate-200 rounded-2xl disabled:opacity-60" />
+                    <div className="bg-white w-full max-w-2xl rounded-3xl p-6 shadow-2xl my-4">
+                        <h3 className="text-2xl font-bold mb-4">Edit User</h3>
+                        <form onSubmit={handleEditUser} className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Full Name</label>
+                                    <input name="name" defaultValue={editingUser.name} required disabled={isEditing} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Email</label>
+                                    <input name="email" type="email" defaultValue={editingUser.email} required disabled={isEditing} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Email</label>
-                                <input name="email" type="email" defaultValue={editingUser.email} required disabled={isEditing} className="w-full px-4 py-3 border border-slate-200 rounded-2xl disabled:opacity-60" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Role</label>
-                                <select name="role" defaultValue={editingUser.role} disabled={isEditing} className="w-full px-4 py-3 border border-slate-200 rounded-2xl bg-white disabled:opacity-60">
-                                    <option value="USER">User</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Role</label>
+                                    <select name="role" defaultValue={editingUser.role} disabled={isEditing} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-white disabled:opacity-60">
+                                        <option value="USER">User</option>
+                                        <option value="ADMIN">Admin</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Monthly Publish Limit</label>
+                                    <input name="monthlyPublishLimit" type="number" min={0} defaultValue={editingUser.monthlyPublishLimit ?? 0} disabled={isEditing} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl disabled:opacity-60" placeholder="0 = Unlimited" />
+                                </div>
                             </div>
                             <UserSettingsFields disabled={isEditing} settings={editingUser.settings} />
-                            <div className="flex gap-4 mt-8">
-                                <button type="button" onClick={() => setEditingUser(null)} disabled={isEditing} className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                                <button type="submit" disabled={isEditing} className={`flex-1 py-3 font-bold rounded-2xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 ${isEditing ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
+                            <div className="flex gap-4 mt-6">
+                                <button type="button" onClick={() => setEditingUser(null)} disabled={isEditing} className="flex-1 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                                <button type="submit" disabled={isEditing} className={`flex-1 py-2.5 font-bold rounded-xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 ${isEditing ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
                                     {isEditing && <Spinner className="w-4 h-4" />}
                                     {isEditing ? "Saving..." : "Save Changes"}
                                 </button>
@@ -268,16 +292,16 @@ function UserSettingsFields({ disabled, settings }: { disabled: boolean; setting
     const parsed = curlCommand?.trim() ? parseCurlCommand(curlCommand) : null;
 
     return (
-        <div className="border-t border-slate-200 pt-6 mt-6 space-y-6">
+        <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
             <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider">System Configuration</h4>
-            <div className="space-y-4">
+            <div className="space-y-3">
                 <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1">Sarvam AI API Key</label>
                     <input name="settings_api_key" type="password" defaultValue={settings?.api_key ?? ""} disabled={disabled} placeholder="Enter Sarvam AI Subscription Key" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60" />
                 </div>
                 <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1">Blog Publish API (cURL)</label>
-                    <textarea name="settings_curlCommand" value={curlCommand} onChange={(e) => setCurlCommand(e.target.value)} disabled={disabled} placeholder="Paste your cURL command..." rows={5} className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-none disabled:opacity-60" />
+                    <textarea name="settings_curlCommand" value={curlCommand} onChange={(e) => setCurlCommand(e.target.value)} disabled={disabled} placeholder="Paste your cURL command..." rows={3} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-none disabled:opacity-60" />
                     {parsed && parsed.url && (
                         <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                             <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parsed Config</h5>

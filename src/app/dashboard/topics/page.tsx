@@ -6,6 +6,7 @@ import { ICONS } from "@/lib/constants";
 import { TableRowSkeleton, Spinner } from "@/components/Skeleton";
 import { useToast } from "@/context/ToastContext";
 import api from "@/lib/api";
+import { read, utils } from "xlsx";
 
 function computeMinDateTime() {
     const now = new Date();
@@ -27,6 +28,11 @@ export default function TopicsPage() {
     const [isAddingTopic, setIsAddingTopic] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [retryingId, setRetryingId] = useState<string | null>(null);
+
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [previewData, setPreviewData] = useState<any[]>([]);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
     useEffect(() => {
         if (!enableSchedule) return;
@@ -91,19 +97,95 @@ export default function TopicsPage() {
         }
     };
 
-    const handleImportCSV = async () => {
+    const handleImportCSV = () => {
+        setShowImportModal(true);
+        setImportFile(null);
+        setPreviewData([]);
+        setValidationErrors([]);
+    };
+
+    const REQUIRED_COLUMNS = ['blog_title', 'category', 'target_audience', 'keywords', 'posted_by'];
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportFile(file);
+        setValidationErrors([]);
+        setPreviewData([]);
+
+        try {
+            const data = await file.arrayBuffer();
+            const workbook = read(data);
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+            if (jsonData.length < 2) {
+                setValidationErrors(["File must contain a header row and at least one data row."]);
+                return;
+            }
+
+            const headers = (jsonData[0] as string[]).map(h => typeof h === 'string' ? h.trim().toLowerCase() : '');
+
+            const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
+            if (missingCols.length > 0) {
+                setValidationErrors([`Missing required columns: ${missingCols.join(', ')}`]);
+                return;
+            }
+
+            const colIndices = REQUIRED_COLUMNS.reduce((acc, col) => {
+                acc[col] = headers.indexOf(col);
+                return acc;
+            }, {} as Record<string, number>);
+
+            const parsedData = [];
+            const errors = [];
+
+            for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0 || row.every(cell => cell === undefined || cell === null || cell === '')) continue;
+
+                const title = row[colIndices['blog_title']];
+                const category = row[colIndices['category']];
+                const targetAudience = row[colIndices['target_audience']];
+                const keywordsRaw = row[colIndices['keywords']];
+                const postedBy = row[colIndices['posted_by']];
+
+                if (!title) errors.push(`Row ${i + 1}: blog_title is empty.`);
+                if (!category) errors.push(`Row ${i + 1}: category is empty.`);
+
+                parsedData.push({
+                    title: title?.toString().trim() || "Untitled",
+                    category: category?.toString().trim() || "Uncategorized",
+                    targetAudience: targetAudience?.toString().trim() || "",
+                    keywords: keywordsRaw ? keywordsRaw.toString().split(',').map((k: string) => k.trim()).filter(Boolean) : [],
+                    postedBy: postedBy?.toString().trim() || "",
+                });
+            }
+
+            if (errors.length > 0) {
+                setValidationErrors(errors);
+            } else if (parsedData.length === 0) {
+                setValidationErrors(["No valid data rows found."]);
+            } else {
+                setPreviewData(parsedData);
+            }
+
+        } catch (err: any) {
+            setValidationErrors([`Failed to read file: ${err.message}`]);
+        }
+    };
+
+    const handleUploadBulk = async () => {
+        if (previewData.length === 0) return;
         setIsImporting(true);
         try {
-            const dummyTopics = [
-                { title: "Top 10 AI Tools for SaaS", category: "AI", keywords: ["AI", "SaaS", "Tools"], targetAudience: "Startup Founders" },
-                { title: "Building a React App with Gemini", category: "Dev", keywords: ["React", "Gemini", "API"], targetAudience: "Developers" },
-                { title: "The Future of Content Marketing", category: "Marketing", keywords: ["SEO", "Content", "2025"], targetAudience: "Marketers" },
-            ];
-            for (const t of dummyTopics) {
-                await api.post("/topics", t);
-            }
+            await api.post("/topics/bulk", { topics: previewData });
             refreshData();
-            toast.success("Imported 3 sample topics!");
+            toast.success(`Successfully imported ${previewData.length} topics!`);
+            setShowImportModal(false);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || "Bulk import failed");
         } finally {
             setIsImporting(false);
         }
@@ -198,10 +280,10 @@ export default function TopicsPage() {
                                 </td>
                                 <td className="px-6 py-5">
                                     <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${topic.cronStatus === "FAILED" ? "bg-rose-100 text-rose-700" :
-                                            topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "bg-indigo-100 text-indigo-700" :
-                                                topic.status === "PENDING" ? "bg-blue-100 text-blue-700" :
-                                                    topic.status === "GENERATED" ? "bg-amber-100 text-amber-700" :
-                                                        "bg-emerald-100 text-emerald-700"
+                                        topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "bg-indigo-100 text-indigo-700" :
+                                            topic.status === "PENDING" ? "bg-blue-100 text-blue-700" :
+                                                topic.status === "GENERATED" ? "bg-amber-100 text-amber-700" :
+                                                    "bg-emerald-100 text-emerald-700"
                                         }`}>
                                         {topic.cronStatus === "FAILED" ? "FAILED" : topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "SCHEDULED" : topic.status}
                                     </span>
@@ -213,8 +295,8 @@ export default function TopicsPage() {
                                                 onClick={() => handleRetryTopic(topic._id)}
                                                 disabled={retryingId === topic._id}
                                                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${retryingId === topic._id
-                                                        ? "border border-slate-200 text-slate-400 cursor-not-allowed"
-                                                        : "text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
+                                                    ? "border border-slate-200 text-slate-400 cursor-not-allowed"
+                                                    : "text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
                                                     }`}
                                             >
                                                 {retryingId === topic._id ? <Spinner className="w-3.5 h-3.5" /> : <ICONS.Clock className="w-3.5 h-3.5" />}
@@ -284,6 +366,74 @@ export default function TopicsPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-4xl rounded-3xl p-8 shadow-2xl max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold">Import CSV / Excel</h3>
+                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <ICONS.X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-semibold text-slate-600 mb-2">Upload File (.csv, .xlsx, .xls)</label>
+                            <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileSelect} className="w-full px-4 py-3 border border-slate-200 rounded-2xl file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                            <p className="text-xs text-slate-500 mt-2">Required columns: blog_title, category, target_audience, keywords, posted_by</p>
+                        </div>
+
+                        {validationErrors.length > 0 && (
+                            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl overflow-y-auto max-h-40">
+                                <h4 className="text-sm font-bold text-rose-700 mb-2">Validation Errors:</h4>
+                                <ul className="list-disc list-inside text-sm text-rose-600 space-y-1">
+                                    {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
+                                </ul>
+                            </div>
+                        )}
+
+                        {previewData.length > 0 && (
+                            <div className="flex-1 overflow-auto border border-slate-200 rounded-2xl mb-6 min-h-[200px]">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold tracking-wider sticky top-0 shadow-sm border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-4 py-3">Title</th>
+                                            <th className="px-4 py-3">Category</th>
+                                            <th className="px-4 py-3">Audience</th>
+                                            <th className="px-4 py-3">Keywords</th>
+                                            <th className="px-4 py-3">Posted By</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {previewData.slice(0, 50).map((row, i) => (
+                                            <tr key={i} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 font-medium text-slate-800">{row.title}</td>
+                                                <td className="px-4 py-3 text-slate-600">{row.category}</td>
+                                                <td className="px-4 py-3 text-slate-600">{row.targetAudience}</td>
+                                                <td className="px-4 py-3 text-slate-600">{row.keywords.join(", ")}</td>
+                                                <td className="px-4 py-3 text-slate-600">{row.postedBy}</td>
+                                            </tr>
+                                        ))}
+                                        {previewData.length > 50 && (
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-3 text-center text-slate-500 bg-slate-50 font-medium">+ {previewData.length - 50} more rows</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        <div className="flex gap-4 mt-auto pt-4 border-t border-slate-100">
+                            <button type="button" onClick={() => setShowImportModal(false)} className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
+                            <button type="button" onClick={handleUploadBulk} disabled={isImporting || previewData.length === 0} className={`flex-1 py-3 font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${isImporting || previewData.length === 0 ? "bg-indigo-300 text-white cursor-not-allowed shadow-none" : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100"}`}>
+                                {isImporting ? <Spinner className="w-4 h-4" /> : <ICONS.Upload className="w-4 h-4" />}
+                                {isImporting ? "Uploading..." : `Upload ${previewData.length} Topics`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

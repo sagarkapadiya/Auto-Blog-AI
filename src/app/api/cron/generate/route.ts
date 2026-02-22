@@ -4,6 +4,7 @@ import { authenticate } from "@/lib/auth";
 import TopicModel from "@/models/Topic";
 import BlogModel from "@/models/Blog";
 import SettingsModel from "@/models/Settings";
+import UserModel from "@/models/User";
 import { SarvamService } from "@/lib/sarvamService";
 
 function isCronAuthorized(req: NextRequest): boolean {
@@ -37,10 +38,16 @@ async function handleCronGenerate() {
         await connectDB();
 
         const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
         const processed: string[] = [];
         const failed: string[] = [];
         const skipped: string[] = [];
         const processedIds: string[] = [];
+
+        // Track per-user generation counts this month to avoid repeated DB queries
+        const userMonthlyCountCache = new Map<string, number>();
 
         const findNextDue = () =>
             TopicModel.findOne({
@@ -55,6 +62,31 @@ async function handleCronGenerate() {
         while (dueTopic) {
             // Always push to processedIds so we never re-visit this topic
             processedIds.push(dueTopic._id.toString());
+
+            const userId = dueTopic.createdBy.toString();
+
+            // --- Monthly generation limit check (per user) ---
+            const user = await UserModel.findById(userId).select("monthlyPublishLimit").lean<{ monthlyPublishLimit?: number }>();
+            const limit = user?.monthlyPublishLimit ?? 0;
+
+            if (limit > 0) {
+                if (!userMonthlyCountCache.has(userId)) {
+                    const count = await BlogModel.countDocuments({
+                        createdBy: userId,
+                        status: { $ne: "REJECTED" },
+                        createdAt: { $gte: monthStart, $lt: monthEnd },
+                    });
+                    userMonthlyCountCache.set(userId, count);
+                }
+
+                const currentCount = userMonthlyCountCache.get(userId)!;
+                if (currentCount >= limit) {
+                    console.warn(`⏸ Cron: Skipping topic "${dueTopic.title}" — user ${userId} monthly limit reached (${currentCount}/${limit})`);
+                    skipped.push(dueTopic.title);
+                    dueTopic = await findNextDue();
+                    continue;
+                }
+            }
 
             const settings = await SettingsModel.findOne({ userId: dueTopic.createdBy });
             if (!settings?.api_key) {
@@ -71,6 +103,10 @@ async function handleCronGenerate() {
                         _id: dueTopic._id.toString(),
                     });
 
+                    if (!generated.content?.trim()) {
+                        throw new Error("AI returned empty content");
+                    }
+
                     await BlogModel.create({
                         ...generated,
                         featuredImageUrl: `https://picsum.photos/seed/${Date.now()}/1200/630`,
@@ -81,6 +117,11 @@ async function handleCronGenerate() {
                     dueTopic.cronStatus = "DONE";
                     await dueTopic.save();
                     processed.push(dueTopic.title);
+
+                    // Increment the cached count for this user
+                    const prev = userMonthlyCountCache.get(userId) ?? 0;
+                    userMonthlyCountCache.set(userId, prev + 1);
+
                     console.log(`✅ Cron: Generated blog for topic "${dueTopic.title}" (${dueTopic._id})`);
                 } catch (topicErr: any) {
                     // Mark as FAILED so it won't be retried on every future cron run

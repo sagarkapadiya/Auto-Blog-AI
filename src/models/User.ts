@@ -6,6 +6,7 @@ export interface IUserDoc extends mongoose.Document {
     password: string;
     role: "USER" | "ADMIN";
     isActive: boolean;
+    monthlyPublishLimit: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const UserSchema = new Schema<IUserDoc>(
         password: { type: String, required: true },
         role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
         isActive: { type: Boolean, default: true },
+        monthlyPublishLimit: { type: Number, default: 0 },
     },
     { timestamps: true }
 );
