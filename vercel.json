@@ -1,10 +1,13 @@
 {
   "framework": "nextjs",
   "outputDirectory": ".next",
+  "env": {
+    "NODE_OPTIONS": "--no-deprecation"
+  },
   "crons": [
     {
       "path": "/api/cron/generate",
-      "schedule": "40 8 * * *"
+      "schedule": "50 8 * * *"
     }
   ]
 }
