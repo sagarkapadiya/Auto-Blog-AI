@@ -24,3 +24,32 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         return authErrorResponse(error);
     }
 }
+
+/** PATCH /api/topics/:id — Partially update a topic (e.g. reset cronStatus for retry) */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        const authUser = await authenticate(req);
+        const { id } = await params;
+        const body = await req.json();
+        await connectDB();
+
+        // Only allow patching safe fields; status fields managed by cron
+        const allowedFields: Record<string, unknown> = {};
+        if (body.cronStatus !== undefined) allowedFields.cronStatus = body.cronStatus;
+        if (body.scheduledAt !== undefined) allowedFields.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+
+        const topic = await TopicModel.findOneAndUpdate(
+            { _id: id, createdBy: authUser._id },
+            { $set: allowedFields },
+            { new: true }
+        );
+
+        if (!topic) {
+            return Response.json({ error: "Topic not found" }, { status: 404 });
+        }
+
+        return Response.json({ topic });
+    } catch (error) {
+        return authErrorResponse(error);
+    }
+}

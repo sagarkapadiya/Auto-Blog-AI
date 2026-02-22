@@ -38,23 +38,28 @@ async function handleCronGenerate() {
 
         const now = new Date();
         const processed: string[] = [];
-        const skipIds: string[] = [];
+        const failed: string[] = [];
+        const skipped: string[] = [];
+        const processedIds: string[] = [];
 
         const findNextDue = () =>
             TopicModel.findOne({
                 cronStatus: "SCHEDULED",
                 status: "PENDING",
                 scheduledAt: { $lte: now },
-                ...(skipIds.length ? { _id: { $nin: skipIds } } : {}),
+                ...(processedIds.length ? { _id: { $nin: processedIds } } : {}),
             }).sort({ scheduledAt: 1 });
 
         let dueTopic = await findNextDue();
 
         while (dueTopic) {
+            // Always push to processedIds so we never re-visit this topic
+            processedIds.push(dueTopic._id.toString());
+
             const settings = await SettingsModel.findOne({ userId: dueTopic.createdBy });
             if (!settings?.api_key) {
                 console.warn(`Skipping topic ${dueTopic._id}: No API key for user ${dueTopic.createdBy}`);
-                skipIds.push(dueTopic._id.toString());
+                skipped.push(dueTopic.title);
             } else {
                 try {
                     const sarvam = new SarvamService(settings.api_key);
@@ -76,22 +81,33 @@ async function handleCronGenerate() {
                     dueTopic.cronStatus = "DONE";
                     await dueTopic.save();
                     processed.push(dueTopic.title);
+                    console.log(`✅ Cron: Generated blog for topic "${dueTopic.title}" (${dueTopic._id})`);
                 } catch (topicErr: any) {
-                    console.error(`Cron failed for topic ${dueTopic._id}:`, topicErr);
-                    throw topicErr;
+                    // Mark as FAILED so it won't be retried on every future cron run
+                    console.error(`❌ Cron: Failed for topic "${dueTopic.title}" (${dueTopic._id}):`, topicErr?.message ?? topicErr);
+                    try {
+                        dueTopic.cronStatus = "FAILED";
+                        await dueTopic.save();
+                    } catch (saveErr) {
+                        console.error(`Could not save FAILED status for topic ${dueTopic._id}:`, saveErr);
+                    }
+                    failed.push(dueTopic.title);
                 }
             }
 
             dueTopic = await findNextDue();
         }
 
-        if (processed.length === 0) {
+        const totalDue = processed.length + failed.length + skipped.length;
+        if (totalDue === 0) {
             return Response.json({ message: "No scheduled topics due" });
         }
 
         return Response.json({
-            message: `Generated ${processed.length} blog(s)`,
-            topics: processed,
+            message: `Processed ${totalDue} topic(s): ${processed.length} generated, ${failed.length} failed, ${skipped.length} skipped`,
+            generated: processed,
+            failed,
+            skipped,
         });
     } catch (error: any) {
         console.error("Cron generate error:", error);

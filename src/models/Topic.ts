@@ -20,7 +20,7 @@ const TopicSchema = new Schema<ITopicDoc>(
         targetAudience: { type: String, required: true },
         status: { type: String, enum: ["PENDING", "GENERATED", "UNDER_REVIEW", "APPROVED", "PUBLISHED", "REJECTED"], default: "PENDING" },
         scheduledAt: { type: Date, default: null },
-        cronStatus: { type: String, enum: ["NONE", "SCHEDULED", "DONE"], default: "NONE" },
+        cronStatus: { type: String, enum: ["NONE", "SCHEDULED", "DONE", "FAILED"], default: "NONE" },
         createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     },
     { timestamps: true }
