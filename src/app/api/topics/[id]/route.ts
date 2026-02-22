@@ -37,6 +37,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const allowedFields: Record<string, unknown> = {};
         if (body.cronStatus !== undefined) allowedFields.cronStatus = body.cronStatus;
         if (body.scheduledAt !== undefined) allowedFields.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+        if (body.title !== undefined) allowedFields.title = body.title;
+        if (body.category !== undefined) allowedFields.category = body.category;
+        if (body.targetAudience !== undefined) allowedFields.targetAudience = body.targetAudience;
+        if (body.keywords !== undefined) allowedFields.keywords = body.keywords;
+        if (body.postedBy !== undefined) allowedFields.postedBy = body.postedBy;
 
         const topic = await TopicModel.findOneAndUpdate(
             { _id: id, createdBy: authUser._id },

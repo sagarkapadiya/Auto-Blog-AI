@@ -10,6 +10,7 @@ export interface ITopicDoc extends mongoose.Document {
     cronStatus: string;
     createdBy: mongoose.Types.ObjectId;
     createdAt: Date;
+    postedBy?: string;
 }
 
 const TopicSchema = new Schema<ITopicDoc>(
@@ -21,6 +22,7 @@ const TopicSchema = new Schema<ITopicDoc>(
         status: { type: String, enum: ["PENDING", "GENERATED", "UNDER_REVIEW", "APPROVED", "PUBLISHED", "REJECTED"], default: "PENDING" },
         scheduledAt: { type: Date, default: null },
         cronStatus: { type: String, enum: ["NONE", "SCHEDULED", "DONE", "FAILED"], default: "NONE" },
+        postedBy: { type: String, default: "" },
         createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     },
     { timestamps: true }

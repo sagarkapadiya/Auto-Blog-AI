@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
             status: "PENDING",
             scheduledAt: null,
             cronStatus: "NONE",
+            postedBy: topic.postedBy || "",
             createdBy: authUser._id,
         }));
 

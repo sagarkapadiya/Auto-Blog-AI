@@ -26,6 +26,7 @@ export default function TopicsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isImporting, setIsImporting] = useState(false);
     const [isAddingTopic, setIsAddingTopic] = useState(false);
+    const [editingTopic, setEditingTopic] = useState<any>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -76,22 +77,30 @@ export default function TopicsPage() {
         }
         setIsAddingTopic(true);
         const formData = new FormData(e.currentTarget);
+        const payload = {
+            title: formData.get("title"),
+            category: formData.get("category"),
+            keywords: (formData.get("keywords") as string).split(",").map(k => k.trim()),
+            targetAudience: formData.get("audience"),
+            postedBy: formData.get("postedBy"),
+            scheduledAt: enableSchedule && scheduledAt ? scheduledAt : null,
+        };
         try {
-            await api.post("/topics", {
-                title: formData.get("title"),
-                category: formData.get("category"),
-                keywords: (formData.get("keywords") as string).split(",").map(k => k.trim()),
-                targetAudience: formData.get("audience"),
-                scheduledAt: enableSchedule && scheduledAt ? scheduledAt : null,
-            });
+            if (editingTopic) {
+                await api.patch(`/topics/${editingTopic._id}`, payload);
+                toast.success("Topic updated successfully!");
+            } else {
+                await api.post("/topics", payload);
+                toast.success(enableSchedule ? "Topic scheduled successfully!" : "Topic added to queue!");
+            }
             setShowAddTopic(false);
+            setEditingTopic(null);
             setEnableSchedule(false);
             setScheduleError("");
             setScheduledAt("");
-            toast.success(enableSchedule ? "Topic scheduled successfully!" : "Topic added to queue!");
             refreshData();
         } catch (error: any) {
-            setScheduleError(error.response?.data?.error || "Failed to create topic");
+            setScheduleError(error.response?.data?.error || (editingTopic ? "Failed to update topic" : "Failed to create topic"));
         } finally {
             setIsAddingTopic(false);
         }
@@ -129,8 +138,18 @@ export default function TopicsPage() {
 
             const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
             if (missingCols.length > 0) {
-                setValidationErrors([`Missing required columns: ${missingCols.join(', ')}`]);
-                return;
+                // If 'posted_by' is missing, try 'posted by' or 'postedBy' or fallback
+                if (missingCols.includes('posted_by') && missingCols.length === 1) {
+                    if (headers.includes('posted by')) REQUIRED_COLUMNS[REQUIRED_COLUMNS.indexOf('posted_by')] = 'posted by';
+                    else if (headers.includes('postedby')) REQUIRED_COLUMNS[REQUIRED_COLUMNS.indexOf('posted_by')] = 'postedby';
+                    else {
+                        setValidationErrors([`Missing required columns: posted_by`]);
+                        return;
+                    }
+                } else {
+                    setValidationErrors([`Missing required columns: ${missingCols.join(', ')}`]);
+                    return;
+                }
             }
 
             const colIndices = REQUIRED_COLUMNS.reduce((acc, col) => {
@@ -149,7 +168,9 @@ export default function TopicsPage() {
                 const category = row[colIndices['category']];
                 const targetAudience = row[colIndices['target_audience']];
                 const keywordsRaw = row[colIndices['keywords']];
-                const postedBy = row[colIndices['posted_by']];
+                let postedBy = row[colIndices['posted_by']] || null;
+                if (!postedBy && colIndices['posted by'] !== undefined) postedBy = row[colIndices['posted by']];
+                if (!postedBy && colIndices['postedby'] !== undefined) postedBy = row[colIndices['postedby']];
 
                 if (!title) errors.push(`Row ${i + 1}: blog_title is empty.`);
                 if (!category) errors.push(`Row ${i + 1}: category is empty.`);
@@ -233,7 +254,7 @@ export default function TopicsPage() {
                         {isImporting ? <Spinner className="w-5 h-5" /> : <ICONS.Upload className="w-5 h-5" />}
                         {isImporting ? "Importing..." : "Import CSV"}
                     </button>
-                    <button onClick={() => setShowAddTopic(true)} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">
+                    <button onClick={() => { setEditingTopic(null); setEnableSchedule(false); setScheduledAt(""); setShowAddTopic(true); }} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">
                         <ICONS.Plus className="w-5 h-5" /> New Topic
                     </button>
                 </div>
@@ -246,6 +267,8 @@ export default function TopicsPage() {
                             <th className="px-6 py-5">Topic</th>
                             <th className="px-6 py-5">Category</th>
                             <th className="px-6 py-5">Audience</th>
+                            <th className="px-6 py-5">Keywords</th>
+                            <th className="px-6 py-5">Posted By</th>
                             <th className="px-6 py-5">Scheduled</th>
                             <th className="px-6 py-5">Status</th>
                             <th className="px-6 py-5 text-right">Actions</th>
@@ -253,17 +276,18 @@ export default function TopicsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {isLoading ? (
-                            Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
+                            Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={8} />)
                         ) : topics.length === 0 ? (
-                            <tr><td colSpan={6} className="px-6 py-14 text-center text-slate-400">No topics added yet.</td></tr>
+                            <tr><td colSpan={8} className="px-6 py-14 text-center text-slate-400">No topics added yet.</td></tr>
                         ) : topics.map((topic: any) => (
                             <tr key={topic._id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-5">
                                     <div className="font-semibold text-slate-800">{topic.title}</div>
-                                    <div className="text-xs text-slate-400 mt-1">Keywords: {topic.keywords?.join(", ")}</div>
                                 </td>
                                 <td className="px-6 py-5 text-slate-600 font-medium">{topic.category}</td>
                                 <td className="px-6 py-5 text-slate-500">{topic.targetAudience}</td>
+                                <td className="px-6 py-5 text-slate-500 text-xs">{(topic.keywords || []).join(", ")}</td>
+                                <td className="px-6 py-5 text-slate-500">{topic.postedBy || <span className="text-slate-300">—</span>}</td>
                                 <td className="px-6 py-5">
                                     {topic.scheduledAt ? (
                                         <div className="flex items-center gap-1.5">
@@ -290,6 +314,12 @@ export default function TopicsPage() {
                                 </td>
                                 <td className="px-6 py-5 text-right">
                                     <div className="flex items-center justify-end gap-2">
+                                        {topic.status === "PENDING" && (
+                                            <button onClick={() => { setEditingTopic(topic); setEnableSchedule(!!topic.scheduledAt); if (topic.scheduledAt) setScheduledAt(new Date(topic.scheduledAt).toISOString().slice(0, 16)); else setScheduledAt(""); setShowAddTopic(true); }} className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 text-slate-600 border border-slate-200 hover:bg-slate-50">
+                                                <ICONS.Edit className="w-3.5 h-3.5" />
+                                                Edit
+                                            </button>
+                                        )}
                                         {topic.cronStatus === "FAILED" && (
                                             <button
                                                 onClick={() => handleRetryTopic(topic._id)}
@@ -318,25 +348,31 @@ export default function TopicsPage() {
             {showAddTopic && (
                 <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl">
-                        <h3 className="text-2xl font-bold mb-6">Add New Topic</h3>
+                        <h3 className="text-2xl font-bold mb-6">{editingTopic ? "Edit Topic" : "Add New Topic"}</h3>
                         <form onSubmit={handleAddTopic} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-600 mb-1">Topic Title</label>
-                                <input name="title" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="e.g. The Impact of Quantum Computing" />
+                                <input name="title" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="e.g. The Impact of Quantum Computing" defaultValue={editingTopic?.title || ""} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-600 mb-1">Category</label>
-                                    <input name="category" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="Tech" />
+                                    <input name="category" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="Tech" defaultValue={editingTopic?.category || ""} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-600 mb-1">Target Audience</label>
-                                    <input name="audience" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="Professionals" />
+                                    <input name="audience" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="Professionals" defaultValue={editingTopic?.targetAudience || ""} />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-600 mb-1">Keywords (Comma separated)</label>
-                                <input name="keywords" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="crypto, safety, tech 2024" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Keywords (Comma separated)</label>
+                                    <input name="keywords" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="crypto, safety, tech 2024" defaultValue={editingTopic?.keywords?.join(", ") || ""} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1">Posted By</label>
+                                    <input name="postedBy" required className="w-full px-4 py-3 border border-slate-200 rounded-2xl" placeholder="Author Name" defaultValue={editingTopic?.postedBy || ""} />
+                                </div>
                             </div>
                             <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
                                 <label className="flex items-center gap-3 cursor-pointer">
@@ -359,10 +395,10 @@ export default function TopicsPage() {
                             </div>
                             {scheduleError && <p className="text-sm text-rose-600 font-medium bg-rose-50 px-4 py-2 rounded-xl">{scheduleError}</p>}
                             <div className="flex gap-4 mt-8">
-                                <button type="button" onClick={() => { setShowAddTopic(false); setEnableSchedule(false); setScheduleError(""); setScheduledAt(""); }} className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
+                                <button type="button" onClick={() => { setShowAddTopic(false); setEditingTopic(null); setEnableSchedule(false); setScheduleError(""); setScheduledAt(""); }} className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
                                 <button type="submit" disabled={isAddingTopic} className={`flex-1 py-3 font-bold rounded-2xl shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 ${isAddingTopic ? "bg-indigo-400 cursor-not-allowed text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
                                     {isAddingTopic ? <Spinner className="w-4 h-4" /> : enableSchedule ? <ICONS.Clock className="w-4 h-4" /> : null}
-                                    {isAddingTopic ? "Adding..." : enableSchedule ? "Schedule Topic" : "Add to Queue"}
+                                    {isAddingTopic ? (editingTopic ? "Updating..." : "Adding...") : editingTopic ? "Update Topic" : enableSchedule ? "Schedule Topic" : "Add to Queue"}
                                 </button>
                             </div>
                         </form>
