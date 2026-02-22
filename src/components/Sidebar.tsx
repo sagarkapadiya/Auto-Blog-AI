@@ -14,6 +14,7 @@ export default function Sidebar() {
         { id: "/dashboard/topics", label: "Topic Hub", icon: ICONS.Topics },
         { id: "/dashboard/review", label: "Review Queue", icon: ICONS.Review },
         { id: "/dashboard/published", label: "Published", icon: ICONS.External },
+        { id: "/dashboard/change-password", label: "Change Password", icon: ICONS.Lock },
     ];
 
     if (isAdmin) {
@@ -38,8 +39,8 @@ export default function Sidebar() {
                             key={item.id}
                             href={item.id}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                    ? "bg-indigo-50 text-indigo-700 font-semibold"
-                                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                ? "bg-indigo-50 text-indigo-700 font-semibold"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                                 }`}
                         >
                             <Icon className={`w-5 h-5 ${isActive ? "text-indigo-600" : "text-slate-400"}`} />

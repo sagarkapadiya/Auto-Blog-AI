@@ -19,6 +19,7 @@ export interface IUser {
     password?: string;
     role: UserRole;
     isActive: boolean;
+    monthlyPublishLimit: number;
     createdAt: string;
     updatedAt: string;
 }

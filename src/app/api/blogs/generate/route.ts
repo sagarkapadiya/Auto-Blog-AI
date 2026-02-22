@@ -4,6 +4,7 @@ import { authenticate, authErrorResponse } from "@/lib/auth";
 import TopicModel from "@/models/Topic";
 import BlogModel from "@/models/Blog";
 import SettingsModel from "@/models/Settings";
+import UserModel from "@/models/User";
 import { SarvamService } from "@/lib/sarvamService";
 
 /** POST /api/blogs/generate — Generate a blog from the next pending topic */
@@ -11,6 +12,29 @@ export async function POST(req: NextRequest) {
     try {
         const authUser = await authenticate(req);
         await connectDB();
+
+        // --- Monthly generation limit check ---
+        const user = await UserModel.findById(authUser._id).select("monthlyPublishLimit").lean<{ monthlyPublishLimit?: number }>();
+        const limit = user?.monthlyPublishLimit ?? 0;
+
+        if (limit > 0) {
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+            const generatedThisMonth = await BlogModel.countDocuments({
+                createdBy: authUser._id,
+                status: { $ne: "REJECTED" },
+                createdAt: { $gte: monthStart, $lt: monthEnd },
+            });
+
+            if (generatedThisMonth >= limit) {
+                return Response.json(
+                    { error: `Monthly limit reached (${generatedThisMonth}/${limit}). Please contact your admin to increase your monthly limit.` },
+                    { status: 403 }
+                );
+            }
+        }
 
         // Get user settings for API key
         const settings = await SettingsModel.findOne({ userId: authUser._id });
@@ -49,6 +73,13 @@ export async function POST(req: NextRequest) {
             targetAudience: pendingTopic.targetAudience,
             _id: pendingTopic._id.toString(),
         });
+
+        if (!generated.content?.trim()) {
+            return Response.json(
+                { error: "AI failed to generate blog content. Please try again." },
+                { status: 502 }
+            );
+        }
 
         // Save generated blog
         const blog = await BlogModel.create({

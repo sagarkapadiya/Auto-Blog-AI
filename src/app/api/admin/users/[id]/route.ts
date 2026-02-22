@@ -48,7 +48,7 @@ export async function PUT(
         requireAdmin(authUser);
 
         const { id } = await params;
-        const { name, email, role, settings: settingsUpdates } = await req.json();
+        const { name, email, role, monthlyPublishLimit, settings: settingsUpdates } = await req.json();
 
         await connectDB();
 
@@ -60,6 +60,9 @@ export async function PUT(
         if (name) user.name = name;
         if (email) user.email = email.toLowerCase();
         if (role && ["USER", "ADMIN"].includes(role)) user.role = role;
+        if (typeof monthlyPublishLimit === "number" && monthlyPublishLimit >= 0) {
+            user.monthlyPublishLimit = monthlyPublishLimit;
+        }
 
         await user.save();
 
@@ -84,6 +87,7 @@ export async function PUT(
                 email: user.email,
                 role: user.role,
                 isActive: user.isActive,
+                monthlyPublishLimit: user.monthlyPublishLimit,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
             },
