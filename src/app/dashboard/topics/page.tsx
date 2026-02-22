@@ -26,6 +26,7 @@ export default function TopicsPage() {
     const [isImporting, setIsImporting] = useState(false);
     const [isAddingTopic, setIsAddingTopic] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [retryingId, setRetryingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!enableSchedule) return;
@@ -122,6 +123,22 @@ export default function TopicsPage() {
         }
     };
 
+    const handleRetryTopic = async (topicId: string) => {
+        setRetryingId(topicId);
+        try {
+            // Reset cronStatus to SCHEDULED so the cron will pick it up again
+            await api.patch(`/topics/${topicId}`, { cronStatus: "SCHEDULED" });
+            // Trigger the cron immediately for this user
+            await api.post("/cron/generate", {});
+            toast.success("Retrying blog generation...");
+            setTimeout(refreshData, 3000);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || "Retry failed");
+        } finally {
+            setRetryingId(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -180,15 +197,35 @@ export default function TopicsPage() {
                                     )}
                                 </td>
                                 <td className="px-6 py-5">
-                                    <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${topic.status === "PENDING" ? topic.cronStatus === "SCHEDULED" ? "bg-indigo-100 text-indigo-700" : "bg-blue-100 text-blue-700" : topic.status === "GENERATED" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                        {topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "SCHEDULED" : topic.status}
+                                    <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${topic.cronStatus === "FAILED" ? "bg-rose-100 text-rose-700" :
+                                            topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "bg-indigo-100 text-indigo-700" :
+                                                topic.status === "PENDING" ? "bg-blue-100 text-blue-700" :
+                                                    topic.status === "GENERATED" ? "bg-amber-100 text-amber-700" :
+                                                        "bg-emerald-100 text-emerald-700"
+                                        }`}>
+                                        {topic.cronStatus === "FAILED" ? "FAILED" : topic.status === "PENDING" && topic.cronStatus === "SCHEDULED" ? "SCHEDULED" : topic.status}
                                     </span>
                                 </td>
                                 <td className="px-6 py-5 text-right">
-                                    <button onClick={() => handleDeleteTopic(topic._id)} disabled={deletingId === topic._id} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ml-auto ${deletingId === topic._id ? "border border-slate-200 text-slate-400 cursor-not-allowed" : "text-rose-600 border border-rose-200 hover:bg-rose-50"}`}>
-                                        {deletingId === topic._id ? <Spinner className="w-3.5 h-3.5" /> : <ICONS.X className="w-3.5 h-3.5" />}
-                                        {deletingId === topic._id ? "Deleting..." : "Delete"}
-                                    </button>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {topic.cronStatus === "FAILED" && (
+                                            <button
+                                                onClick={() => handleRetryTopic(topic._id)}
+                                                disabled={retryingId === topic._id}
+                                                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${retryingId === topic._id
+                                                        ? "border border-slate-200 text-slate-400 cursor-not-allowed"
+                                                        : "text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
+                                                    }`}
+                                            >
+                                                {retryingId === topic._id ? <Spinner className="w-3.5 h-3.5" /> : <ICONS.Clock className="w-3.5 h-3.5" />}
+                                                {retryingId === topic._id ? "Retrying..." : "Retry"}
+                                            </button>
+                                        )}
+                                        <button onClick={() => handleDeleteTopic(topic._id)} disabled={deletingId === topic._id} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${deletingId === topic._id ? "border border-slate-200 text-slate-400 cursor-not-allowed" : "text-rose-600 border border-rose-200 hover:bg-rose-50"}`}>
+                                            {deletingId === topic._id ? <Spinner className="w-3.5 h-3.5" /> : <ICONS.X className="w-3.5 h-3.5" />}
+                                            {deletingId === topic._id ? "Deleting..." : "Delete"}
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}

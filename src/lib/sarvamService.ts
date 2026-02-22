@@ -11,6 +11,121 @@ interface TopicInput {
     _id: string;
 }
 
+/**
+ * Robustly extract a JSON object from an LLM response string.
+ *
+ * Handles:
+ * - Markdown code fences (```json ... ```)
+ * - Leading/trailing text before/after the JSON
+ * - HTML content inside `content` field that contains `{`, `}`, unescaped `&`, etc.
+ * - Literal newlines inside JSON string values (control characters)
+ */
+function extractJsonFromLLMResponse(raw: string): Record<string, unknown> | null {
+    if (!raw?.trim()) return null;
+
+    // Step 1: strip markdown code fences (handles multiline and various forms)
+    let text = raw
+        .replace(/^```(?:json)?\s*/im, "")
+        .replace(/\s*```\s*$/im, "")
+        .trim();
+
+    // Step 2: Try direct parse — handles the happy path
+    try {
+        return JSON.parse(text);
+    } catch {/* fall through */ }
+
+    // Step 3: Locate the start of the JSON object
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+    text = text.slice(start);
+
+    // Step 4: Try parse from first `{` directly
+    try {
+        return JSON.parse(text);
+    } catch {/* fall through */ }
+
+    // Step 5: Replace literal unescaped control characters inside strings
+    // (LLMs sometimes emit real newlines/tabs inside JSON string values)
+    const sanitized = text
+        .replace(/[\u0000-\u001F\u007F]/g, (ch) => {
+            // Keep chars that are valid JSON escape sequences
+            const escapes: Record<string, string> = {
+                "\n": "\\n",
+                "\r": "\\r",
+                "\t": "\\t",
+                "\b": "\\b",
+                "\f": "\\f",
+            };
+            return escapes[ch] ?? "";
+        });
+    try {
+        return JSON.parse(sanitized);
+    } catch {/* fall through */ }
+
+    // Step 6: Walk character-by-character to find the balanced closing `}`
+    // This handles junk text after the JSON object
+    let depth = 0;
+    let i = 0;
+    let inString = false;
+    let escape = false;
+
+    while (i < sanitized.length) {
+        const c = sanitized[i];
+        if (escape) {
+            escape = false;
+        } else if (c === "\\") {
+            escape = true;
+        } else if (c === '"') {
+            inString = !inString;
+        } else if (!inString) {
+            if (c === "{") depth++;
+            else if (c === "}") {
+                depth--;
+                if (depth === 0) {
+                    try {
+                        return JSON.parse(sanitized.slice(0, i + 1));
+                    } catch {
+                        break;
+                    }
+                }
+            }
+        }
+        i++;
+    }
+
+    // Step 7: Last resort — use a regex to extract each known field individually
+    // (handles the case where `content` has malformed JSON-breaking characters)
+    try {
+        const extract = (key: string): string | null => {
+            // Match "key": "value" where value may span multiple lines
+            const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\[\\s\\S])*)"`, "s");
+            const m = sanitized.match(re);
+            return m ? m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : null;
+        };
+        const extractArray = (key: string): string[] => {
+            const re = new RegExp(`"${key}"\\s*:\\s*\\[([^\\]]*)]`, "s");
+            const m = sanitized.match(re);
+            if (!m) return [];
+            return m[1].match(/"([^"]*)"/g)?.map(s => s.slice(1, -1)) ?? [];
+        };
+
+        const seoTitle = extract("seoTitle");
+        const content = extract("content");
+        if (!seoTitle && !content) return null; // nothing useful found
+
+        return {
+            seoTitle: seoTitle ?? "",
+            metaDescription: extract("metaDescription") ?? "",
+            slug: extract("slug") ?? "",
+            content: content ?? "",
+            tags: extractArray("tags"),
+            featuredImagePrompt: extract("featuredImagePrompt") ?? "",
+        };
+    } catch {
+        return null;
+    }
+}
+
 export class SarvamService {
     private apiKey: string;
 
@@ -46,7 +161,7 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
                     {
                         role: "system",
                         content:
-                            "You are an expert SEO blog writer. You MUST respond with ONLY a single valid JSON object. No markdown, no code blocks, no backticks, no explanations before or after. Output starts with { and ends with }.",
+                            "You are an expert SEO blog writer. You MUST respond with ONLY a single valid JSON object. No markdown, no code blocks, no backticks, no explanations before or after. Output starts with { and ends with }. All HTML inside the content field MUST be on a single line with no literal newlines — use \\n escape sequences instead.",
                     },
                     { role: "user", content: prompt },
                 ],
@@ -59,54 +174,9 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
                 },
             });
 
-            const rawContent = result.choices?.[0]?.message?.content || "";
+            const rawContent: string = result.choices?.[0]?.message?.content || "";
 
-            const parseJsonFromContent = (text: string): Record<string, unknown> | null => {
-                if (!text?.trim()) return null;
-                let cleaned = text
-                    .replace(/^```(?:json)?\s*/i, "")
-                    .replace(/\s*```\s*$/g, "")
-                    .trim();
-                // Try direct parse first
-                try {
-                    return JSON.parse(cleaned);
-                } catch {
-                    // Extract JSON object: find first { and match to closing }, respecting strings
-                    const start = cleaned.indexOf("{");
-                    if (start === -1) return null;
-                    let depth = 0;
-                    let i = start;
-                    let inString: false | string = false;
-                    let escape = false;
-                    const chars = cleaned.split("");
-                    while (i < chars.length) {
-                        const c = chars[i];
-                        if (escape) {
-                            escape = false;
-                        } else if (inString) {
-                            if (c === "\\") escape = true;
-                            else if (typeof inString === "string" && c === inString) inString = false;
-                        } else if (c === '"' || c === "'") {
-                            inString = c;
-                        } else if (c === "{") {
-                            depth++;
-                        } else if (c === "}") {
-                            depth--;
-                            if (depth === 0) {
-                                try {
-                                    return JSON.parse(cleaned.slice(start, i + 1));
-                                } catch {
-                                    return null;
-                                }
-                            }
-                        }
-                        i++;
-                    }
-                    return null;
-                }
-            };
-
-            const data = parseJsonFromContent(rawContent);
+            const data = extractJsonFromLLMResponse(rawContent);
             if (!data || typeof data !== "object") {
                 console.error("Failed to parse Sarvam AI response. Raw (first 500 chars):", rawContent.slice(0, 500));
                 throw new Error(
