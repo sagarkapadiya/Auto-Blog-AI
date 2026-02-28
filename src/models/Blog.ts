@@ -12,6 +12,7 @@ export interface IBlogDoc extends mongoose.Document {
     status: string;
     publishedAt?: Date;
     comments?: string;
+    publishApiResponse?: Record<string, unknown>;
     createdBy: mongoose.Types.ObjectId;
     createdAt: Date;
 }
@@ -29,6 +30,7 @@ const BlogSchema = new Schema<IBlogDoc>(
         status: { type: String, enum: ["PENDING", "GENERATED", "UNDER_REVIEW", "APPROVED", "PUBLISHED", "REJECTED"], default: "GENERATED" },
         publishedAt: { type: Date },
         comments: { type: String },
+        publishApiResponse: { type: Schema.Types.Mixed },
         createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     },
     { timestamps: true }

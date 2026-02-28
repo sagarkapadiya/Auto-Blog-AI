@@ -44,7 +44,7 @@ export default function PublishedPage() {
     };
 
     const handleDeleteBlog = async (blogId: string) => {
-        if (!confirm("Are you sure you want to delete this published blog?")) return;
+        if (!confirm("Are you sure you want to delete this published blog? This will also remove it from the external platform if a delete API is configured.")) return;
         setDeletingBlogId(blogId);
         try {
             await api.delete(`/blogs/${blogId}`);

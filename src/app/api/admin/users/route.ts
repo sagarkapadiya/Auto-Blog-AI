@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
                 generationTime: userSettings.generationTime ?? "09:00",
                 reviewerEmail: userSettings.reviewerEmail ?? "",
                 curlCommand: userSettings.curlCommand ?? "",
+                deleteCurlCommand: userSettings.deleteCurlCommand ?? "",
             });
         }
 

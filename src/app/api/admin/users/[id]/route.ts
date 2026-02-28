@@ -31,6 +31,7 @@ export async function GET(
                 generationTime: "09:00",
                 reviewerEmail: "",
                 curlCommand: "",
+                deleteCurlCommand: "",
             },
         });
     } catch (error) {
@@ -67,7 +68,7 @@ export async function PUT(
         await user.save();
 
         if (settingsUpdates && typeof settingsUpdates === "object") {
-            const defaultSettings = { api_key: "", generationTime: "09:00", reviewerEmail: "", curlCommand: "" };
+            const defaultSettings = { api_key: "", generationTime: "09:00", reviewerEmail: "", curlCommand: "", deleteCurlCommand: "" };
             const raw = await Settings.findOne({ userId: id }).lean();
             const existing = { ...defaultSettings, ...(Array.isArray(raw) ? raw[0] : raw) };
             const merged = {
@@ -76,6 +77,7 @@ export async function PUT(
                 generationTime: "generationTime" in settingsUpdates ? (settingsUpdates.generationTime ?? "09:00") : (existing.generationTime ?? "09:00"),
                 reviewerEmail: "reviewerEmail" in settingsUpdates ? (settingsUpdates.reviewerEmail ?? "") : (existing.reviewerEmail ?? ""),
                 curlCommand: "curlCommand" in settingsUpdates ? (settingsUpdates.curlCommand ?? "") : (existing.curlCommand ?? ""),
+                deleteCurlCommand: "deleteCurlCommand" in settingsUpdates ? (settingsUpdates.deleteCurlCommand ?? "") : (existing.deleteCurlCommand ?? ""),
             };
             await Settings.findOneAndUpdate({ userId: id }, merged, { upsert: true, new: true });
         }

@@ -32,8 +32,9 @@ export function parseCurlCommand(curl: string): ParsedCurl {
         }
     }
 
-    const bodyRegex = /(?:-d|--data|--data-raw)\s+[']([\s\S]*?)[']/;
-    const bodyMatch = normalized.match(bodyRegex);
+    const bodyRegexSingle = /(?:-d|--data|--data-raw)\s+'([\s\S]*?)'/;
+    const bodyRegexDouble = /(?:-d|--data|--data-raw)\s+"([\s\S]*?)"/;
+    const bodyMatch = normalized.match(bodyRegexSingle) || normalized.match(bodyRegexDouble);
     if (bodyMatch) {
         try {
             bodyTemplate = JSON.parse(bodyMatch[1]);

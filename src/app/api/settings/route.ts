@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
                 generationTime: "09:00",
                 reviewerEmail: "",
                 curlCommand: "",
+                deleteCurlCommand: "",
             } as any;
         }
 
@@ -43,6 +44,7 @@ export async function PUT(req: NextRequest) {
                 generationTime: updates.generationTime ?? "09:00",
                 reviewerEmail: updates.reviewerEmail ?? "",
                 curlCommand: updates.curlCommand ?? "",
+                deleteCurlCommand: updates.deleteCurlCommand ?? "",
             },
             { upsert: true, new: true }
         );
