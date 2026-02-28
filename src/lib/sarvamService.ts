@@ -135,24 +135,24 @@ export class SarvamService {
 
     async generateBlog(topic: TopicInput) {
         const prompt = `
-Write a comprehensive, SEO-optimized blog post about: "${topic.title}".
-Category: ${topic.category}
-Keywords: ${topic.keywords.join(", ")}
-Target Audience: ${topic.targetAudience}
+            Write a comprehensive, SEO-optimized blog post about: "${topic.title}".
+            Category: ${topic.category}
+            Keywords: ${topic.keywords.join(", ")}
+            Target Audience: ${topic.targetAudience}
 
-The blog should be 1200-1500 words, include H2/H3 headings, an FAQ section, and a strong CTA.
-Write in a human, engaging tone. Avoid robotic language.
+            The blog should be 1200-1500 words, include H2/H3 headings, an FAQ section, and a strong CTA.
+            Write in a human, engaging tone. Avoid robotic language.
 
-You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with these exact keys:
-{
-  "seoTitle": "SEO-optimized title for the blog",
-  "metaDescription": "A compelling meta description under 160 characters",
-  "slug": "url-friendly-slug-for-the-blog",
-  "content": "Full blog content in HTML format with proper h2, h3, p, ul, ol tags",
-  "tags": ["tag1", "tag2", "tag3"],
-  "featuredImagePrompt": "A detailed prompt for generating a featured image for this blog"
-}
-`;
+            You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with these exact keys:
+            {
+            "seoTitle": "SEO-optimized title for the blog",
+            "metaDescription": "A compelling meta description under 160 characters",
+            "slug": "url-friendly-slug-for-the-blog",
+            "content": "Full blog content in HTML format with proper h2, h3, p, ul, ol tags",
+            "tags": ["tag1", "tag2", "tag3"],
+            "featuredImagePrompt": "A detailed prompt for generating a featured image for this blog"
+            }
+        `;
 
         try {
             const { data: result } = await axios.post(SARVAM_API_URL, {
@@ -184,11 +184,17 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
                 );
             }
 
+            const content = (data.content as string) || "";
+            if (!content.trim()) {
+                console.error(`[SarvamService] AI returned empty content for "${topic.title}". Raw (first 500 chars):`, rawContent.slice(0, 500));
+                throw new Error("AI returned empty blog content. The model may not have generated the content field properly.");
+            }
+
             return {
                 seoTitle: (data.seoTitle as string) || topic.title,
                 metaDescription: (data.metaDescription as string) || "",
                 slug: (data.slug as string) || topic.title.toLowerCase().replace(/\s+/g, "-"),
-                content: (data.content as string) || "",
+                content,
                 tags: Array.isArray(data.tags) ? data.tags : [],
                 featuredImagePrompt: (data.featuredImagePrompt as string) || topic.title,
                 topicId: topic._id,
@@ -196,7 +202,10 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
             };
         } catch (error: any) {
             if (error.response) {
-                throw new Error(`Sarvam API error (${error.response.status}): ${error.response.data ? JSON.stringify(error.response.data) : ""}`);
+                const status = error.response.status;
+                const errBody = error.response.data ? JSON.stringify(error.response.data) : "";
+                console.error(`[SarvamService] API error ${status} for "${topic.title}": ${errBody}`);
+                throw new Error(`Sarvam API error (${status}): ${errBody}`);
             }
             throw error;
         }

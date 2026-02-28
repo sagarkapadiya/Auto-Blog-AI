@@ -29,7 +29,9 @@ async function isAuthorized(req: NextRequest): Promise<boolean> {
 
 /**
  * GET/POST /api/cron/generate
- * Processes all scheduled topics whose scheduledAt has passed.
+ * Fetches ALL pending scheduled topics whose scheduledAt <= now,
+ * groups them by user (batch), and processes each batch sequentially
+ * with a 1-second delay between each blog generation.
  * Secured via CRON_SECRET (x-cron-secret header or Authorization: Bearer).
  * Vercel Cron uses GET; external schedulers can use POST.
  */
@@ -44,63 +46,84 @@ async function handleCronGenerate() {
         const processed: string[] = [];
         const failed: string[] = [];
         const skipped: string[] = [];
-        const processedIds: string[] = [];
 
-        // Track per-user generation counts this month to avoid repeated DB queries
-        const userMonthlyCountCache = new Map<string, number>();
+        // --- Step 1: Fetch ALL due topics in one query ---
+        const dueTopics = await TopicModel.find({
+            cronStatus: "SCHEDULED",
+            status: "PENDING",
+            scheduledAt: { $lte: now },
+        }).sort({ scheduledAt: 1 });
 
-        const findNextDue = () =>
-            TopicModel.findOne({
-                cronStatus: "SCHEDULED",
-                status: "PENDING",
-                scheduledAt: { $lte: now },
-                ...(processedIds.length ? { _id: { $nin: processedIds } } : {}),
-            }).sort({ scheduledAt: 1 });
+        if (!dueTopics.length) {
+            return Response.json({ message: "No scheduled topics due" });
+        }
 
-        let dueTopic = await findNextDue();
+        console.log(`📋 Cron: Found ${dueTopics.length} due topic(s). Grouping by user…`);
 
-        while (dueTopic) {
-            // Always push to processedIds so we never re-visit this topic
-            processedIds.push(dueTopic._id.toString());
+        // --- Step 2: Group topics by user (batch per user) ---
+        const userBatches = new Map<string, typeof dueTopics>();
+        for (const topic of dueTopics) {
+            const userId = topic.createdBy.toString();
+            if (!userBatches.has(userId)) {
+                userBatches.set(userId, []);
+            }
+            userBatches.get(userId)!.push(topic);
+        }
 
-            const userId = dueTopic.createdBy.toString();
+        // --- Step 3: Process each user batch sequentially ---
+        for (const [userId, topics] of userBatches) {
+            console.log(`👤 Cron: Processing batch for user ${userId} — ${topics.length} topic(s)`);
 
-            // --- Monthly generation limit check (per user) ---
-            const user = await UserModel.findById(userId).select("monthlyPublishLimit").lean<{ monthlyPublishLimit?: number }>();
+            // Fetch user's monthly limit
+            const user = await UserModel.findById(userId)
+                .select("monthlyPublishLimit")
+                .lean<{ monthlyPublishLimit?: number }>();
             const limit = user?.monthlyPublishLimit ?? 0;
 
+            // Fetch current monthly generation count for this user
+            let monthlyCount = 0;
             if (limit > 0) {
-                if (!userMonthlyCountCache.has(userId)) {
-                    const count = await BlogModel.countDocuments({
-                        createdBy: userId,
-                        status: { $ne: "REJECTED" },
-                        createdAt: { $gte: monthStart, $lt: monthEnd },
-                    });
-                    userMonthlyCountCache.set(userId, count);
-                }
-
-                const currentCount = userMonthlyCountCache.get(userId)!;
-                if (currentCount >= limit) {
-                    console.warn(`⏸ Cron: Skipping topic "${dueTopic.title}" — user ${userId} monthly limit reached (${currentCount}/${limit})`);
-                    skipped.push(dueTopic.title);
-                    dueTopic = await findNextDue();
-                    continue;
-                }
+                monthlyCount = await BlogModel.countDocuments({
+                    createdBy: userId,
+                    status: { $ne: "REJECTED" },
+                    createdAt: { $gte: monthStart, $lt: monthEnd },
+                });
             }
 
-            const settings = await SettingsModel.findOne({ userId: dueTopic.createdBy });
+            // Fetch user's API settings once per batch
+            const settings = await SettingsModel.findOne({ userId });
             if (!settings?.api_key) {
-                console.warn(`Skipping topic ${dueTopic._id}: No API key for user ${dueTopic.createdBy}`);
-                skipped.push(dueTopic.title);
-            } else {
+                console.warn(`⚠ Cron: No API key for user ${userId} — skipping ${topics.length} topic(s)`);
+                for (const topic of topics) {
+                    skipped.push(topic.title);
+                }
+                continue;
+            }
+
+            // Reuse the same SarvamService instance for the entire user batch
+            const sarvam = new SarvamService(settings.api_key);
+
+            // Process each topic in this user's batch
+            for (const topic of topics) {
+                // Monthly limit check
+                if (limit > 0 && monthlyCount >= limit) {
+                    console.warn(
+                        `⏸ Cron: Skipping topic "${topic.title}" — user ${userId} monthly limit reached (${monthlyCount}/${limit})`
+                    );
+                    skipped.push(topic.title);
+                    continue;
+                }
+
                 try {
-                    const sarvam = new SarvamService(settings.api_key);
+                    // Throttle: 1-second delay before each generation
+                    await new Promise((r) => setTimeout(r, 1000));
+
                     const generated = await sarvam.generateBlog({
-                        title: dueTopic.title,
-                        category: dueTopic.category,
-                        keywords: dueTopic.keywords,
-                        targetAudience: dueTopic.targetAudience,
-                        _id: dueTopic._id.toString(),
+                        title: topic.title,
+                        category: topic.category,
+                        keywords: topic.keywords,
+                        targetAudience: topic.targetAudience,
+                        _id: topic._id.toString(),
                     });
 
                     if (!generated.content?.trim()) {
@@ -110,40 +133,33 @@ async function handleCronGenerate() {
                     await BlogModel.create({
                         ...generated,
                         featuredImageUrl: `https://picsum.photos/seed/${Date.now()}/1200/630`,
-                        createdBy: dueTopic.createdBy,
+                        createdBy: topic.createdBy,
                     });
 
-                    dueTopic.status = "GENERATED";
-                    dueTopic.cronStatus = "DONE";
-                    await dueTopic.save();
-                    processed.push(dueTopic.title);
+                    topic.status = "GENERATED";
+                    topic.cronStatus = "DONE";
+                    await topic.save();
+                    processed.push(topic.title);
 
-                    // Increment the cached count for this user
-                    const prev = userMonthlyCountCache.get(userId) ?? 0;
-                    userMonthlyCountCache.set(userId, prev + 1);
-
-                    console.log(`✅ Cron: Generated blog for topic "${dueTopic.title}" (${dueTopic._id})`);
+                    monthlyCount++;
+                    console.log(`✅ Cron: Generated blog for topic "${topic.title}" (${topic._id})`);
                 } catch (topicErr: any) {
-                    // Mark as FAILED so it won't be retried on every future cron run
-                    console.error(`❌ Cron: Failed for topic "${dueTopic.title}" (${dueTopic._id}):`, topicErr?.message ?? topicErr);
+                    console.error(
+                        `❌ Cron: Failed for topic "${topic.title}" (${topic._id}):`,
+                        topicErr?.message ?? topicErr
+                    );
                     try {
-                        dueTopic.cronStatus = "FAILED";
-                        await dueTopic.save();
+                        topic.cronStatus = "FAILED";
+                        await topic.save();
                     } catch (saveErr) {
-                        console.error(`Could not save FAILED status for topic ${dueTopic._id}:`, saveErr);
+                        console.error(`Could not save FAILED status for topic ${topic._id}:`, saveErr);
                     }
-                    failed.push(dueTopic.title);
+                    failed.push(topic.title);
                 }
             }
-
-            dueTopic = await findNextDue();
         }
 
         const totalDue = processed.length + failed.length + skipped.length;
-        if (totalDue === 0) {
-            return Response.json({ message: "No scheduled topics due" });
-        }
-
         return Response.json({
             message: `Processed ${totalDue} topic(s): ${processed.length} generated, ${failed.length} failed, ${skipped.length} skipped`,
             generated: processed,

@@ -58,6 +58,7 @@ export interface Settings {
     generationTime: string;
     reviewerEmail: string;
     curlCommand: string;
+    deleteCurlCommand: string;
 }
 
 export interface DashboardStats {

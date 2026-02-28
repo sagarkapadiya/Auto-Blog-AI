@@ -53,6 +53,7 @@ function AdminPanel() {
                 settings: {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
+                    deleteCurlCommand: formData.get("settings_deleteCurlCommand") || "",
                 },
             });
             setShowCreateModal(false);
@@ -78,6 +79,7 @@ function AdminPanel() {
                 settings: {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
+                    deleteCurlCommand: formData.get("settings_deleteCurlCommand") || "",
                 },
             });
             setEditingUser(null);
@@ -286,10 +288,13 @@ function AdminPanel() {
     );
 }
 
-function UserSettingsFields({ disabled, settings }: { disabled: boolean; settings: { api_key?: string; curlCommand?: string } | null }) {
+function UserSettingsFields({ disabled, settings }: { disabled: boolean; settings: { api_key?: string; curlCommand?: string; deleteCurlCommand?: string } | null }) {
     const [curlCommand, setCurlCommand] = useState(settings?.curlCommand ?? "");
+    const [deleteCurlCommand, setDeleteCurlCommand] = useState(settings?.deleteCurlCommand ?? "");
     useEffect(() => { setCurlCommand(settings?.curlCommand ?? ""); }, [settings?.curlCommand]);
+    useEffect(() => { setDeleteCurlCommand(settings?.deleteCurlCommand ?? ""); }, [settings?.deleteCurlCommand]);
     const parsed = curlCommand?.trim() ? parseCurlCommand(curlCommand) : null;
+    const parsedDelete = deleteCurlCommand?.trim() ? parseCurlCommand(deleteCurlCommand) : null;
 
     return (
         <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
@@ -330,6 +335,36 @@ function UserSettingsFields({ disabled, settings }: { disabled: boolean; setting
                                         <div className="flex flex-wrap gap-1 mt-1">
                                             {Object.keys(parsed.bodyTemplate).map(key => (
                                                 <span key={key} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-semibold">{key}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">Blog Delete API (cURL)</label>
+                    <textarea name="settings_deleteCurlCommand" value={deleteCurlCommand} onChange={(e) => setDeleteCurlCommand(e.target.value)} disabled={disabled} placeholder={'Paste your delete cURL command...\nUse {{key}} placeholders for values from publish response, e.g. {{id}} or {{data.id}}'} rows={3} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-none disabled:opacity-60" />
+                    <p className="text-xs text-slate-400 mt-1">Use <code className="bg-slate-100 px-1 rounded">{"{{key}}"}</code> placeholders to inject values from the publish API response (e.g. <code className="bg-slate-100 px-1 rounded">{"{{id}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{data.id}}"}</code>).</p>
+                    {parsedDelete && parsedDelete.url && (
+                        <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parsed Delete Config</h5>
+                            <div className="space-y-1.5 text-sm">
+                                <div className="flex gap-2">
+                                    <span className="font-semibold text-slate-600 min-w-[60px]">Method:</span>
+                                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded text-xs font-bold">{parsedDelete.method}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="font-semibold text-slate-600 min-w-[60px]">URL:</span>
+                                    <span className="text-slate-700 break-all text-xs">{parsedDelete.url}</span>
+                                </div>
+                                {Object.keys(parsedDelete.headers || {}).length > 0 && (
+                                    <div>
+                                        <span className="font-semibold text-slate-600">Headers:</span>
+                                        <div className="mt-1 space-y-0.5">
+                                            {Object.entries(parsedDelete.headers).map(([k, v]) => (
+                                                <div key={k} className="text-xs text-slate-500 font-mono pl-2">{k}: {String(v).length > 30 ? String(v).slice(0, 30) + "..." : v}</div>
                                             ))}
                                         </div>
                                     </div>

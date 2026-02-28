@@ -6,6 +6,7 @@ export interface ISettingsDoc extends mongoose.Document {
     generationTime: string;
     reviewerEmail: string;
     curlCommand: string;
+    deleteCurlCommand: string;
 }
 
 const SettingsSchema = new Schema<ISettingsDoc>(
@@ -15,6 +16,7 @@ const SettingsSchema = new Schema<ISettingsDoc>(
         generationTime: { type: String, default: "09:00" },
         reviewerEmail: { type: String, default: "" },
         curlCommand: { type: String, default: "" },
+        deleteCurlCommand: { type: String, default: "" },
     },
     { timestamps: true }
 );

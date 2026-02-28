@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
             }),
             BlogModel.countDocuments({
                 ...filter,
-                status: "PUBLISHED",
                 publishedAt: { $gte: monthStart, $lt: monthEnd },
             }),
             UserModel.findById(authUser._id).select("monthlyPublishLimit").lean<{ monthlyPublishLimit?: number }>(),
