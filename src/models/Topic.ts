@@ -11,6 +11,7 @@ export interface ITopicDoc extends mongoose.Document {
     createdBy: mongoose.Types.ObjectId;
     createdAt: Date;
     postedBy?: string;
+    sortOrder: number;
 }
 
 const TopicSchema = new Schema<ITopicDoc>(
@@ -23,6 +24,7 @@ const TopicSchema = new Schema<ITopicDoc>(
         scheduledAt: { type: Date, default: null },
         cronStatus: { type: String, enum: ["NONE", "SCHEDULED", "DONE", "FAILED"], default: "NONE" },
         postedBy: { type: String, default: "" },
+        sortOrder: { type: Number, default: 0 },
         createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     },
     { timestamps: true }

@@ -15,7 +15,9 @@ export async function POST(req: NextRequest) {
 
         await connectDB();
 
-        const topicsToInsert = topics.map((topic: any) => ({
+        const batchTimestamp = new Date();
+
+        const topicsToInsert = topics.map((topic: any, index: number) => ({
             title: topic.title,
             category: topic.category,
             keywords: Array.isArray(topic.keywords) ? topic.keywords : [],
@@ -24,10 +26,15 @@ export async function POST(req: NextRequest) {
             scheduledAt: null,
             cronStatus: "NONE",
             postedBy: topic.postedBy || "",
+            sortOrder: index + 1,
+            createdAt: batchTimestamp,
+            updatedAt: batchTimestamp,
             createdBy: authUser._id,
         }));
 
-        const result = await TopicModel.insertMany(topicsToInsert);
+        console.log("[bulk-import] First topic to insert:", JSON.stringify(topicsToInsert[0], null, 2));
+        const result = await TopicModel.insertMany(topicsToInsert, { ordered: true });
+        console.log("[bulk-import] First inserted doc:", JSON.stringify(result[0]?.toObject(), null, 2));
 
         return Response.json({ message: `Successfully inserted ${result.length} topics`, count: result.length }, { status: 201 });
     } catch (error) {

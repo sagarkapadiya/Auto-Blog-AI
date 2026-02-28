@@ -94,6 +94,9 @@ async function handleCronGenerate() {
                 skipped.push(dueTopic.title);
             } else {
                 try {
+                    // Throttle: wait 1 second before sending topic to the model
+                    await new Promise((r) => setTimeout(r, 1000));
+
                     const sarvam = new SarvamService(settings.api_key);
                     const generated = await sarvam.generateBlog({
                         title: dueTopic.title,
@@ -123,6 +126,9 @@ async function handleCronGenerate() {
                     userMonthlyCountCache.set(userId, prev + 1);
 
                     console.log(`✅ Cron: Generated blog for topic "${dueTopic.title}" (${dueTopic._id})`);
+
+                    // Cooldown: wait 500ms after generation before next topic
+                    await new Promise((r) => setTimeout(r, 500));
                 } catch (topicErr: any) {
                     // Mark as FAILED so it won't be retried on every future cron run
                     console.error(`❌ Cron: Failed for topic "${dueTopic.title}" (${dueTopic._id}):`, topicErr?.message ?? topicErr);

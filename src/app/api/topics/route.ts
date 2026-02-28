@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
         await connectDB();
 
         const topics = await TopicModel.find({ createdBy: authUser._id })
-            .sort({ createdAt: -1 })
+            .sort({ sortOrder: 1, _id: -1 })
             .lean();
 
         return Response.json({ topics });

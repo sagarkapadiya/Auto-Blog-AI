@@ -35,7 +35,6 @@ export async function PUT(
 
                 const publishedThisMonth = await BlogModel.countDocuments({
                     createdBy: authUser._id,
-                    status: "PUBLISHED",
                     publishedAt: { $gte: monthStart, $lt: monthEnd },
                 });
 
