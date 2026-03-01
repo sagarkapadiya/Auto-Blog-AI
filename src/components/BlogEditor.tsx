@@ -7,13 +7,14 @@ import { Spinner } from "@/components/Skeleton";
 interface BlogEditorProps {
     blog: any;
     onApprove: (blog: any) => void;
+    onSchedule?: (blog: any, scheduledAt: string) => void;
     onReject: (id: string, reason: string) => void;
     onClose: () => void;
     isPublishing?: boolean;
     isRejecting?: boolean;
 }
 
-export default function BlogEditor({ blog, onApprove, onReject, onClose, isPublishing = false, isRejecting = false }: BlogEditorProps) {
+export default function BlogEditor({ blog, onApprove, onSchedule, onReject, onClose, isPublishing = false, isRejecting = false }: BlogEditorProps) {
     const [content, setContent] = useState(blog.content);
     const [title, setTitle] = useState(blog.seoTitle);
     const [slug, setSlug] = useState(blog.slug);
@@ -21,6 +22,9 @@ export default function BlogEditor({ blog, onApprove, onReject, onClose, isPubli
     const [tags, setTags] = useState(blog.tags?.join(", ") || "");
     const [rejectReason, setRejectReason] = useState("");
     const [showRejectModal, setShowRejectModal] = useState(false);
+    const [showPublishModal, setShowPublishModal] = useState(false);
+    const [scheduledDate, setScheduledDate] = useState("");
+    const [scheduledTime, setScheduledTime] = useState("");
     const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
 
     const isBusy = isPublishing || isRejecting;
@@ -158,15 +162,21 @@ export default function BlogEditor({ blog, onApprove, onReject, onClose, isPubli
                             Cancel
                         </button>
                         <button
-                            onClick={() => onApprove({
-                                ...blog,
-                                content,
-                                seoTitle: title,
-                                slug,
-                                metaDescription,
-                                tags: tags.split(",").map((t: string) => t.trim()).filter(Boolean),
-                                status: "APPROVED",
-                            })}
+                            onClick={() => {
+                                if (onSchedule) {
+                                    setShowPublishModal(true);
+                                } else {
+                                    onApprove({
+                                        ...blog,
+                                        content,
+                                        seoTitle: title,
+                                        slug,
+                                        metaDescription,
+                                        tags: tags.split(",").map((t: string) => t.trim()).filter(Boolean),
+                                        status: "APPROVED",
+                                    });
+                                }
+                            }}
                             disabled={isBusy}
                             className={`px-8 py-2 font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all flex items-center gap-2 ${
                                 isPublishing
@@ -177,12 +187,12 @@ export default function BlogEditor({ blog, onApprove, onReject, onClose, isPubli
                             {isPublishing ? (
                                 <>
                                     <Spinner className="w-5 h-5" />
-                                    Publishing...
+                                    {onSchedule ? "Publishing..." : "Saving..."}
                                 </>
                             ) : (
                                 <>
                                     <ICONS.Check className="w-5 h-5" />
-                                    Approve & Publish
+                                    {onSchedule ? "Approve & Publish" : "Save Changes"}
                                 </>
                             )}
                         </button>
@@ -216,6 +226,102 @@ export default function BlogEditor({ blog, onApprove, onReject, onClose, isPubli
                                     }`}
                                 >
                                     {isRejecting ? <><Spinner className="w-4 h-4" /> Rejecting...</> : "Confirm Reject"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showPublishModal && (
+                    <div className="fixed inset-0 z-[60] bg-slate-900/40 flex items-center justify-center p-4">
+                        <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">Publish Blog</h3>
+                            <p className="text-sm text-slate-500 mb-6">Would you like to publish this blog now or schedule it for later?</p>
+
+                            <div className="space-y-4">
+                                {/* Schedule section */}
+                                <div className="p-4 border border-slate-200 rounded-xl space-y-3">
+                                    <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider">Schedule for later</h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">Date</label>
+                                            <input
+                                                type="date"
+                                                value={scheduledDate}
+                                                onChange={(e) => setScheduledDate(e.target.value)}
+                                                min={new Date().toISOString().split("T")[0]}
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">Time</label>
+                                            <input
+                                                type="time"
+                                                value={scheduledTime}
+                                                onChange={(e) => setScheduledTime(e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (!scheduledDate || !scheduledTime || !onSchedule) return;
+                                            const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+                                            onSchedule(
+                                                {
+                                                    ...blog,
+                                                    content,
+                                                    seoTitle: title,
+                                                    slug,
+                                                    metaDescription,
+                                                    tags: tags.split(",").map((t: string) => t.trim()).filter(Boolean),
+                                                },
+                                                scheduledAt
+                                            );
+                                            setShowPublishModal(false);
+                                        }}
+                                        disabled={!scheduledDate || !scheduledTime || isBusy}
+                                        className="w-full py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                        </svg>
+                                        Schedule Publish
+                                    </button>
+                                </div>
+
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+                                    <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400 uppercase">or</span></div>
+                                </div>
+
+                                {/* Publish now */}
+                                <button
+                                    onClick={() => {
+                                        onApprove({
+                                            ...blog,
+                                            content,
+                                            seoTitle: title,
+                                            slug,
+                                            metaDescription,
+                                            tags: tags.split(",").map((t: string) => t.trim()).filter(Boolean),
+                                            status: "APPROVED",
+                                        });
+                                        setShowPublishModal(false);
+                                    }}
+                                    disabled={isBusy}
+                                    className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    <ICONS.Check className="w-5 h-5" />
+                                    Publish Now
+                                </button>
+
+                                <button
+                                    onClick={() => setShowPublishModal(false)}
+                                    disabled={isBusy}
+                                    className="w-full py-2 text-slate-500 font-medium hover:bg-slate-50 rounded-xl transition-colors"
+                                >
+                                    Cancel
                                 </button>
                             </div>
                         </div>

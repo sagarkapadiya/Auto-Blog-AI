@@ -54,6 +54,7 @@ function AdminPanel() {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
                     deleteCurlCommand: formData.get("settings_deleteCurlCommand") || "",
+                    editCurlCommand: formData.get("settings_editCurlCommand") || "",
                 },
             });
             setShowCreateModal(false);
@@ -80,6 +81,7 @@ function AdminPanel() {
                     api_key: formData.get("settings_api_key") || "",
                     curlCommand: formData.get("settings_curlCommand") || "",
                     deleteCurlCommand: formData.get("settings_deleteCurlCommand") || "",
+                    editCurlCommand: formData.get("settings_editCurlCommand") || "",
                 },
             });
             setEditingUser(null);
@@ -288,13 +290,16 @@ function AdminPanel() {
     );
 }
 
-function UserSettingsFields({ disabled, settings }: { disabled: boolean; settings: { api_key?: string; curlCommand?: string; deleteCurlCommand?: string } | null }) {
+function UserSettingsFields({ disabled, settings }: { disabled: boolean; settings: { api_key?: string; curlCommand?: string; deleteCurlCommand?: string; editCurlCommand?: string } | null }) {
     const [curlCommand, setCurlCommand] = useState(settings?.curlCommand ?? "");
     const [deleteCurlCommand, setDeleteCurlCommand] = useState(settings?.deleteCurlCommand ?? "");
+    const [editCurlCommand, setEditCurlCommand] = useState(settings?.editCurlCommand ?? "");
     useEffect(() => { setCurlCommand(settings?.curlCommand ?? ""); }, [settings?.curlCommand]);
     useEffect(() => { setDeleteCurlCommand(settings?.deleteCurlCommand ?? ""); }, [settings?.deleteCurlCommand]);
+    useEffect(() => { setEditCurlCommand(settings?.editCurlCommand ?? ""); }, [settings?.editCurlCommand]);
     const parsed = curlCommand?.trim() ? parseCurlCommand(curlCommand) : null;
     const parsedDelete = deleteCurlCommand?.trim() ? parseCurlCommand(deleteCurlCommand) : null;
+    const parsedEdit = editCurlCommand?.trim() ? parseCurlCommand(editCurlCommand) : null;
 
     return (
         <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
@@ -307,6 +312,7 @@ function UserSettingsFields({ disabled, settings }: { disabled: boolean; setting
                 <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1">Blog Publish API (cURL)</label>
                     <textarea name="settings_curlCommand" value={curlCommand} onChange={(e) => setCurlCommand(e.target.value)} disabled={disabled} placeholder="Paste your cURL command..." rows={3} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-none disabled:opacity-60" />
+                    <p className="text-xs text-slate-400 mt-1">Use <code className="bg-slate-100 px-1 rounded">{"{{key}}"}</code> placeholders in body values to map blog fields (e.g. <code className="bg-slate-100 px-1 rounded">{"{{slug}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{title}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{content}}"}</code>).</p>
                     {parsed && parsed.url && (
                         <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                             <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parsed Config</h5>
@@ -365,6 +371,46 @@ function UserSettingsFields({ disabled, settings }: { disabled: boolean; setting
                                         <div className="mt-1 space-y-0.5">
                                             {Object.entries(parsedDelete.headers).map(([k, v]) => (
                                                 <div key={k} className="text-xs text-slate-500 font-mono pl-2">{k}: {String(v).length > 30 ? String(v).slice(0, 30) + "..." : v}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">Blog Edit API (cURL)</label>
+                    <textarea name="settings_editCurlCommand" value={editCurlCommand} onChange={(e) => setEditCurlCommand(e.target.value)} disabled={disabled} placeholder={'Paste your edit/update cURL command...\nUse {{key}} placeholders for blog fields and publish response values, e.g. {{id}}, {{title}}, {{content}}'} rows={3} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-none disabled:opacity-60" />
+                    <p className="text-xs text-slate-400 mt-1">Use <code className="bg-slate-100 px-1 rounded">{"{{key}}"}</code> placeholders for blog fields (<code className="bg-slate-100 px-1 rounded">{"{{title}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{content}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{slug}}"}</code>) and publish API response values (<code className="bg-slate-100 px-1 rounded">{"{{id}}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{{data.id}}"}</code>) in the URL.</p>
+                    {parsedEdit && parsedEdit.url && (
+                        <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parsed Edit Config</h5>
+                            <div className="space-y-1.5 text-sm">
+                                <div className="flex gap-2">
+                                    <span className="font-semibold text-slate-600 min-w-[60px]">Method:</span>
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-bold">{parsedEdit.method}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="font-semibold text-slate-600 min-w-[60px]">URL:</span>
+                                    <span className="text-slate-700 break-all text-xs">{parsedEdit.url}</span>
+                                </div>
+                                {Object.keys(parsedEdit.headers || {}).length > 0 && (
+                                    <div>
+                                        <span className="font-semibold text-slate-600">Headers:</span>
+                                        <div className="mt-1 space-y-0.5">
+                                            {Object.entries(parsedEdit.headers).map(([k, v]) => (
+                                                <div key={k} className="text-xs text-slate-500 font-mono pl-2">{k}: {String(v).length > 30 ? String(v).slice(0, 30) + "..." : v}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {parsedEdit.bodyTemplate && (
+                                    <div>
+                                        <span className="font-semibold text-slate-600">Body Fields:</span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {Object.keys(parsedEdit.bodyTemplate).map(key => (
+                                                <span key={key} className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-semibold">{key}</span>
                                             ))}
                                         </div>
                                     </div>

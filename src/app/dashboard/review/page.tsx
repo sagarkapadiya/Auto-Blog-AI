@@ -15,6 +15,7 @@ export default function ReviewPage() {
     const [selectedBlog, setSelectedBlog] = useState<any>(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
+    const [isScheduling, setIsScheduling] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [monthlyPublished, setMonthlyPublished] = useState(0);
     const [monthlyPublishLimit, setMonthlyPublishLimit] = useState(0);
@@ -36,7 +37,7 @@ export default function ReviewPage() {
 
     useEffect(() => { if (token) refreshData(); }, [token, refreshData]);
 
-    const reviewBlogs = blogs.filter((b: any) => b.status === "GENERATED" || b.status === "REJECTED");
+    const reviewBlogs = blogs.filter((b: any) => b.status === "GENERATED" || b.status === "REJECTED" || b.status === "SCHEDULED");
 
     const limitReached = monthlyPublishLimit > 0 && monthlyPublished >= monthlyPublishLimit;
 
@@ -51,6 +52,25 @@ export default function ReviewPage() {
             toast.error("Error publishing: " + (error.response?.data?.error || error.message));
         } finally {
             setIsPublishing(false);
+        }
+    };
+
+    const handleSchedule = async (blog: any, scheduledAt: string) => {
+        setIsScheduling(true);
+        try {
+            await api.put(`/blogs/${blog._id}`, {
+                ...blog,
+                status: "SCHEDULED",
+                scheduledPublishAt: scheduledAt,
+            });
+            setSelectedBlog(null);
+            const d = new Date(scheduledAt);
+            toast.success(`Blog scheduled for ${d.toLocaleDateString()} at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+            refreshData();
+        } catch (error: any) {
+            toast.error("Error scheduling: " + (error.response?.data?.error || error.message));
+        } finally {
+            setIsScheduling(false);
         }
     };
 
@@ -71,7 +91,7 @@ export default function ReviewPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-3xl font-bold text-slate-800">Review Queue</h2>
+                <h2 className="text-3xl font-bold text-slate-800">Review Blogs</h2>
                 <p className="text-slate-500">Approve or edit AI-generated blogs before they go live.</p>
             </div>
 
@@ -113,7 +133,11 @@ export default function ReviewPage() {
                         <div className="relative h-48">
                             {blog.featuredImageUrl && <img src={blog.featuredImageUrl} className="w-full h-full object-cover" alt="Featured" />}
                             <div className="absolute top-4 left-4">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${blog.status === "REJECTED" ? "bg-rose-600 text-white" : "bg-indigo-600 text-white"}`}>{blog.status}</span>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                    blog.status === "REJECTED" ? "bg-rose-600 text-white"
+                                    : blog.status === "SCHEDULED" ? "bg-amber-500 text-white"
+                                    : "bg-indigo-600 text-white"
+                                }`}>{blog.status}</span>
                             </div>
                         </div>
                         <div className="p-6 flex-1">
@@ -122,6 +146,11 @@ export default function ReviewPage() {
                             {blog.comments && (
                                 <div className="mt-4 p-3 bg-rose-50 text-rose-700 text-xs rounded-lg border border-rose-100">
                                     <strong>Rejection Note:</strong> {blog.comments}
+                                </div>
+                            )}
+                            {blog.status === "SCHEDULED" && blog.scheduledPublishAt && (
+                                <div className="mt-4 p-3 bg-amber-50 text-amber-700 text-xs rounded-lg border border-amber-100">
+                                    <strong>Scheduled:</strong> {new Date(blog.scheduledPublishAt).toLocaleDateString()} at {new Date(blog.scheduledPublishAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </div>
                             )}
                         </div>
@@ -135,7 +164,7 @@ export default function ReviewPage() {
             {isPublishing && <FullPageLoader message="Publishing blog to third-party API..." />}
 
             {selectedBlog && (
-                <BlogEditor blog={selectedBlog} onApprove={handleApprove} onReject={handleReject} onClose={() => setSelectedBlog(null)} isPublishing={isPublishing} isRejecting={isRejecting} />
+                <BlogEditor blog={selectedBlog} onApprove={handleApprove} onSchedule={handleSchedule} onReject={handleReject} onClose={() => setSelectedBlog(null)} isPublishing={isPublishing} isRejecting={isRejecting} />
             )}
         </div>
     );

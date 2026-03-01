@@ -5,11 +5,13 @@ import { useAuth } from "@/context/AuthContext";
 import BlogEditor from "@/components/BlogEditor";
 import { PublishedRowSkeleton, FullPageLoader } from "@/components/Skeleton";
 import { useToast } from "@/context/ToastContext";
+import { useConfirm } from "@/context/ConfirmContext";
 import api from "@/lib/api";
 
 export default function PublishedPage() {
     const { token } = useAuth();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [blogs, setBlogs] = useState<any[]>([]);
     const [editingBlog, setEditingBlog] = useState<any>(null);
     const [deletingBlogId, setDeletingBlogId] = useState<string | null>(null);
@@ -32,9 +34,28 @@ export default function PublishedPage() {
     const handleUpdatePublished = async (blog: any) => {
         setIsSaving(true);
         try {
-            await api.put(`/blogs/${blog._id}`, blog);
+            // Send only content fields — don't change the status of published blogs
+            const { data } = await api.put(`/blogs/${blog._id}`, {
+                seoTitle: blog.seoTitle,
+                metaDescription: blog.metaDescription,
+                slug: blog.slug,
+                content: blog.content,
+                tags: blog.tags,
+                featuredImageUrl: blog.featuredImageUrl,
+                featuredImagePrompt: blog.featuredImagePrompt,
+            });
             setEditingBlog(null);
-            toast.success("Blog updated successfully!");
+
+            // Show feedback about external API sync
+            if (data.editApiResult) {
+                if (data.editApiResult.success) {
+                    toast.success("Blog updated & synced to external platform!");
+                } else {
+                    toast.error("Blog saved locally, but external sync failed: " + data.editApiResult.error);
+                }
+            } else {
+                toast.success("Blog updated successfully!");
+            }
             refreshData();
         } catch (error: any) {
             toast.error("Error saving: " + (error.response?.data?.error || error.message));
@@ -44,7 +65,13 @@ export default function PublishedPage() {
     };
 
     const handleDeleteBlog = async (blogId: string) => {
-        if (!confirm("Are you sure you want to delete this published blog? This will also remove it from the external platform if a delete API is configured.")) return;
+        const confirmed = await confirm({
+            title: "Delete Published Blog",
+            message: "Are you sure you want to delete this published blog? This will also remove it from the external platform if a delete API is configured.",
+            confirmText: "Delete",
+            variant: "danger",
+        });
+        if (!confirmed) return;
         setDeletingBlogId(blogId);
         try {
             await api.delete(`/blogs/${blogId}`);

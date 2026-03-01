@@ -6,25 +6,17 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "lint": "next lint",
-        "seed": "npx tsx src/scripts/seed.ts"
+        "lint": "next lint"
     },
     "dependencies": {
         "axios": "^1.13.5",
-        "bcryptjs": "^2.4.3",
-        "dotenv": "^17.3.1",
-        "jsonwebtoken": "^9.0.2",
-        "mongoose": "^8.9.5",
         "next": "^15.1.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
-        "xlsx": "^0.18.5",
-        "zod": "^4.3.6"
+        "xlsx": "^0.18.5"
     },
     "devDependencies": {
         "@tailwindcss/typography": "^0.5.19",
-        "@types/bcryptjs": "^2.4.6",
-        "@types/jsonwebtoken": "^9.0.7",
         "@types/node": "^22.10.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
@@ -32,7 +24,6 @@
         "eslint-config-next": "^15.1.0",
         "postcss": "^8.4.49",
         "tailwindcss": "^3.4.16",
-        "tsx": "^4.19.0",
         "typescript": "^5.7.0"
     }
 }

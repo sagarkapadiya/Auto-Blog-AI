@@ -98,8 +98,8 @@ export default function DashboardPage() {
         if (!value) return null;
         const selected = new Date(value);
         const minAllowed = new Date();
-        minAllowed.setMinutes(minAllowed.getMinutes() + 5, 0, 0);
-        if (selected < minAllowed) return "Scheduled time must be at least 5 minutes from now";
+        minAllowed.setMinutes(minAllowed.getMinutes() + 1, 0, 0);
+        if (selected < minAllowed) return "Scheduled time must be at least 1 minute from now";
         return null;
     };
 
@@ -321,19 +321,6 @@ export default function DashboardPage() {
                     </table>
                 </div>
                 <div className="space-y-6">
-                    <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
-                        <div className="relative z-10">
-                            <h3 className="text-xl font-bold">Automation Status</h3>
-                            <p className="mt-2 text-indigo-100 opacity-90">Your next post is scheduled for tomorrow at {settings?.generationTime || "09:00"}.</p>
-                            <div className="mt-6 p-4 bg-white/10 rounded-xl backdrop-blur-md">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
-                                    <span className="text-sm font-semibold">Scheduler Active</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="absolute top-0 right-0 p-8 opacity-10"><ICONS.Clock className="w-24 h-24" /></div>
-                    </div>
                     <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800">Quick Actions</h3>
                         <div className="mt-4 space-y-3">
@@ -386,7 +373,7 @@ export default function DashboardPage() {
                                     <div>
                                         <input type="datetime-local" name="scheduledAt" value={scheduledAt} onChange={(e) => handleScheduleChange(e.target.value)} required={enableSchedule} min={minDateTime} className={`w-full px-4 py-3 border rounded-2xl text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none ${scheduleError ? "border-rose-300 bg-rose-50/50" : "border-slate-200"}`} />
                                         <p className={`text-[11px] mt-1.5 flex items-center gap-1 ${scheduleError ? "text-rose-500" : "text-slate-400"}`}>
-                                            <ICONS.Clock className="w-3 h-3" /> {scheduleError || "Must be at least 5 minutes from now"}
+                                            <ICONS.Clock className="w-3 h-3" /> {scheduleError || "Must be at least 1 minute from now"}
                                         </p>
                                     </div>
                                 )}
