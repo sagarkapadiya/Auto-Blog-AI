@@ -51,16 +51,3 @@ export function parseCurlCommand(curl: string): ParsedCurl {
 
     return { url, method, headers, bodyTemplate };
 }
-
-export function buildPayloadFromTemplate(
-    template: Record<string, unknown> | null,
-    blogData: Record<string, unknown>
-): Record<string, unknown> {
-    if (!template) return blogData;
-
-    const payload: Record<string, unknown> = {};
-    for (const key of Object.keys(template)) {
-        payload[key] = key in blogData ? blogData[key] : template[key];
-    }
-    return payload;
-}

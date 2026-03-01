@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { ConfirmProvider } from "@/context/ConfirmContext";
 
 export const metadata: Metadata = {
     title: "AutoBlog AI - Automated Publishing System",
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html lang="en" suppressHydrationWarning>
             <body className="bg-slate-50 text-slate-900 antialiased">
                 <AuthProvider>
-                    <ToastProvider>{children}</ToastProvider>
+                    <ToastProvider>
+                        <ConfirmProvider>{children}</ConfirmProvider>
+                    </ToastProvider>
                 </AuthProvider>
             </body>
         </html>

@@ -12,7 +12,7 @@ export default function Sidebar() {
     const navItems = [
         { id: "/dashboard", label: "Dashboard", icon: ICONS.Dashboard },
         { id: "/dashboard/topics", label: "Topic Hub", icon: ICONS.Topics },
-        { id: "/dashboard/review", label: "Review Queue", icon: ICONS.Review },
+        { id: "/dashboard/review", label: "Review Blogs", icon: ICONS.Review },
         { id: "/dashboard/published", label: "Published", icon: ICONS.External },
         { id: "/dashboard/change-password", label: "Change Password", icon: ICONS.Lock },
     ];

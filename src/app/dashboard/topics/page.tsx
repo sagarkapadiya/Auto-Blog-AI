@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ICONS } from "@/lib/constants";
 import { TableRowSkeleton, Spinner } from "@/components/Skeleton";
 import { useToast } from "@/context/ToastContext";
+import { useConfirm } from "@/context/ConfirmContext";
 import api from "@/lib/api";
 import { read, utils } from "xlsx";
 
@@ -17,6 +18,7 @@ function computeMinDateTime() {
 export default function TopicsPage() {
     const { token } = useAuth();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [topics, setTopics] = useState<any[]>([]);
     const [showAddTopic, setShowAddTopic] = useState(false);
     const [enableSchedule, setEnableSchedule] = useState(false);
@@ -57,8 +59,8 @@ export default function TopicsPage() {
         if (!value) return null;
         const selected = new Date(value);
         const minAllowed = new Date();
-        minAllowed.setMinutes(minAllowed.getMinutes() + 5, 0, 0);
-        if (selected < minAllowed) return "Scheduled time must be at least 5 minutes from now";
+        minAllowed.setMinutes(minAllowed.getMinutes() + 1, 0, 0);
+        if (selected < minAllowed) return "Scheduled time must be at least 1 minute from now";
         return null;
     };
 
@@ -213,7 +215,13 @@ export default function TopicsPage() {
     };
 
     const handleDeleteTopic = async (topicId: string) => {
-        if (!confirm("Are you sure you want to delete this topic?")) return;
+        const confirmed = await confirm({
+            title: "Delete Topic",
+            message: "Are you sure you want to delete this topic?",
+            confirmText: "Delete",
+            variant: "danger",
+        });
+        if (!confirmed) return;
         setDeletingId(topicId);
         try {
             await api.delete(`/topics/${topicId}`);
@@ -388,7 +396,7 @@ export default function TopicsPage() {
                                     <div>
                                         <input type="datetime-local" name="scheduledAt" value={scheduledAt} onChange={(e) => handleScheduleChange(e.target.value)} required={enableSchedule} min={minDateTime} className={`w-full px-4 py-3 border rounded-2xl text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none ${scheduleError ? "border-rose-300 bg-rose-50/50" : "border-slate-200"}`} />
                                         <p className={`text-[11px] mt-1.5 flex items-center gap-1 ${scheduleError ? "text-rose-500" : "text-slate-400"}`}>
-                                            <ICONS.Clock className="w-3 h-3" /> {scheduleError || "Must be at least 5 minutes from now"}
+                                            <ICONS.Clock className="w-3 h-3" /> {scheduleError || "Must be at least 1 minute from now"}
                                         </p>
                                     </div>
                                 )}

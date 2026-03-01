@@ -3,6 +3,7 @@ export enum BlogStatus {
     GENERATED = "GENERATED",
     UNDER_REVIEW = "UNDER_REVIEW",
     APPROVED = "APPROVED",
+    SCHEDULED = "SCHEDULED",
     PUBLISHED = "PUBLISHED",
     REJECTED = "REJECTED",
 }
@@ -59,6 +60,7 @@ export interface Settings {
     reviewerEmail: string;
     curlCommand: string;
     deleteCurlCommand: string;
+    editCurlCommand: string;
 }
 
 export interface DashboardStats {
